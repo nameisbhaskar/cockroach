@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi-minimal
+FROM us-east1-docker.pkg.dev/rail-dev/docker-mirror/registry.access.redhat.com/ubi9/ubi-minimal
 ARG fips_enabled
 
 # For deployment, we need the following additionally installed:
