@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -331,12 +330,11 @@ func (r *testRunner) Run(
 	for _, testSpec := range tests {
 		//  TODO(bhaskar): remove this once we have more usage details
 		//  and more convinced about using spot VMs for all the runs.
-		if roachtestflags.Cloud == spec.GCE &&
-			testSpec.Benchmark &&
-			!testSpec.Suites.Contains(registry.Weekly) &&
-			rand.Float64() <= 0.5 {
+		if roachtestflags.Cloud == spec.GCE || roachtestflags.Cloud == "all" {
 			lopt.l.PrintfCtx(ctx, "using spot VMs to run test %s", testSpec.Name)
 			testSpec.Cluster.UseSpotVMs = true
+		} else {
+			lopt.l.PrintfCtx(ctx, "using ondemand VMs to run test %s", testSpec.Name)
 		}
 
 		if roachtestflags.UseSpotVM {
