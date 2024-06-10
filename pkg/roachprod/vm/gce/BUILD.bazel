@@ -36,11 +36,14 @@ go_test(
     size = "small",
     srcs = ["gcloud_test.go"],
     embed = [":gce"],
+    embedsrcs = ["snowflake_query.sql"],
     deps = [
         "//pkg/roachprod/vm",
         "//pkg/util/randutil",
         "//pkg/util/timeutil",
         "@com_github_cockroachdb_errors//:errors",
+        "@com_github_snowflakedb_gosnowflake//:gosnowflake",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
