@@ -176,6 +176,23 @@ func (s ClusterSpec) String() string {
 	return str
 }
 
+func (s ClusterSpec) GetString() string {
+	return fmt.Sprintf(
+		"n-%d-=-cpu-%d-=-Mem-%v-=-SSDs-%v-=-RAID0-%v-=-"+
+			"volume-%v-=-LocalSSD-%v-=-Geo-%v-=-arch-%s-=-"+
+			"TerminateMig-%v-=-Spot-%v-=-FileSystem-%v-=-"+
+			"RandomZfs-%v-=-GathrCores-%v-=-"+
+			"GCEMcType-%v-=-GCEMinCPU-%v-=-GCEVolType-%v-=-GCEZones-%v-=-"+
+			"AWSMcType-%v-=-AWSVolTP-%v-=-AWSZones-%v",
+		s.NodeCount, s.CPUs, s.Mem, s.SSDs, s.RAID0,
+		s.VolumeSize, s.LocalSSD, s.Geo, s.Arch,
+		s.TerminateOnMigration, s.UseSpotVMs, s.FileSystem,
+		s.RandomlyUseZfs, s.GatherCores,
+		s.GCE.MachineType, s.GCE.MinCPUPlatform, s.GCE.VolumeType, s.GCE.Zones,
+		s.AWS.MachineType, s.AWS.VolumeThroughput, s.AWS.Zones,
+	)
+}
+
 // checks if an AWS machine supports SSD volumes
 func awsMachineSupportsSSD(machineType string) bool {
 	typeAndSize := strings.Split(machineType, ".")

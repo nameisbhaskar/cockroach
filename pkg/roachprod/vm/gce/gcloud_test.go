@@ -11,8 +11,15 @@
 package gce
 
 import (
+	"context"
+	gosql "database/sql"
+	_ "embed"
+	"encoding/json"
+	"fmt"
 	"math"
 	"math/rand"
+	"os"
+	"os/exec"
 	"reflect"
 	"sort"
 	"strconv"
@@ -25,8 +32,171 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/util/randutil"
 	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
 	"github.com/cockroachdb/errors"
+	sf "github.com/snowflakedb/gosnowflake"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+const (
+	account   = "lt53838.us-central1.gcp"
+	database  = "DATAMART_PROD"
+	schema    = "TEAMCITY"
+	warehouse = "COMPUTE_WH"
+	layout    = "2006-01-02T15:04:05.999999999Z07:00"
+
+	// sfUsernameEnv and sfPasswordEnv are the environment variables that are used for Snowflake access
+	sfUsernameEnv = "SFUSER"
+	sfPasswordEnv = "SFPASSWORD"
+)
+
+//go:embed snowflake_query.sql
+var preparedQuery string
+
+type vmInfo struct {
+	name          string
+	instanceID    string
+	region        string
+	startTime     time.Time
+	preemptedTime time.Time
+	timeDiff      int
+}
+
+func TestTT(t *testing.T) {
+	daysToQuery := "10"
+	ctx := context.Background()
+	db, err := getConnect(ctx)
+	require.Nil(t, err)
+	defer func() { _ = db.Close() }()
+	statement, err := db.Prepare(preparedQuery)
+	require.Nil(t, err)
+	// add the parameters in sequence
+	rows, err := statement.QueryContext(ctx, "-"+daysToQuery)
+	require.Nil(t, err)
+	// All the column headers
+	colHeaders, err := rows.Columns()
+	require.Nil(t, err)
+	// Will be used to read data while iterating rows.
+	colPointers := make([]interface{}, len(colHeaders))
+	colContainer := make([]string, len(colHeaders))
+	for i := range colPointers {
+		colPointers[i] = &colContainer[i]
+	}
+	preemptedVMs := make([]*vmInfo, 0)
+	vmsFromQuery := make([]*vmInfo, 0)
+	for rows.Next() {
+		err = rows.Scan(colPointers...)
+		results := make([]string, len(colContainer))
+		copy(results, colContainer)
+		instanceInfo := strings.Split(results[0], "/")
+		instanceID := instanceInfo[len(instanceInfo)-1]
+		region := instanceInfo[len(instanceInfo)-3]
+		info := &vmInfo{name: results[0], instanceID: instanceID, region: region}
+		vmsFromQuery = append(vmsFromQuery, info)
+		if len(vmsFromQuery) == 350 {
+			vmsMapFromQuery := make(map[string]*vmInfo)
+			for _, vmFromQ := range vmsFromQuery {
+				vmsMapFromQuery[vmFromQ.instanceID] = vmFromQ
+			}
+			preemptedVMs = append(preemptedVMs, queryForPreempt(t, vmsMapFromQuery, daysToQuery)...)
+			vmsFromQuery = make([]*vmInfo, 0)
+		}
+	}
+	if len(vmsFromQuery) > 0 {
+		vmsMapFromQuery := make(map[string]*vmInfo)
+		for _, vmFromQ := range vmsFromQuery {
+			vmsMapFromQuery[vmFromQ.instanceID] = vmFromQ
+		}
+		preemptedVMs = append(preemptedVMs, queryForPreempt(t, vmsMapFromQuery, daysToQuery)...)
+	}
+	timeToCount := make(map[float64]int)
+	for _, pvm := range preemptedVMs {
+		diff := pvm.preemptedTime.Sub(pvm.startTime)
+		t.Logf("%s,%s,%v,%v,%0.2f", pvm.name, pvm.region, pvm.startTime, pvm.preemptedTime, diff.Minutes())
+		timeToCount[math.Ceil(diff.Hours())]++
+	}
+	t.Log(timeToCount)
+}
+
+func queryForPreempt(
+	t *testing.T, vmsMapFromQuery map[string]*vmInfo, daysToQuery string,
+) []*vmInfo {
+	vmFilter := make([]string, len(vmsMapFromQuery))
+	i := 0
+	for k := range vmsMapFromQuery {
+		vmFilter[i] = fmt.Sprintf("resource.labels.instance_id=%s", k)
+		i++
+	}
+	filter := fmt.Sprintf(`resource.type=gce_instance AND 
+(
+	protoPayload.methodName=compute.instances.preempted OR
+	(protoPayload.methodName=v1.compute.instances.insert AND operation.last=true)
+) AND 
+(%s)`, strings.Join(vmFilter, " OR "))
+	cmd := exec.Command("gcloud", "logging", "read", "--project=cockroach-ephemeral",
+		"--format=json", fmt.Sprintf("--freshness=%sd", daysToQuery), filter)
+	var logEntries []LogEntry
+	rawJSON, err := cmd.Output()
+	require.Nil(t, err)
+	err = json.Unmarshal(rawJSON, &logEntries)
+	require.Nil(t, err)
+	for _, entry := range logEntries {
+		if vmi, ok := vmsMapFromQuery[entry.Resource.Labels.InstanceID]; ok {
+			vmi.name = entry.ProtoPayload.ResourceName
+			if entry.ProtoPayload.MethodName == "v1.compute.instances.insert" {
+				vmi.startTime, err = time.Parse(layout, entry.Timestamp)
+				require.Nil(t, err)
+			} else {
+				vmi.preemptedTime, err = time.Parse(layout, entry.Timestamp)
+				require.Nil(t, err)
+			}
+		}
+	}
+	preemptedVMs := make([]*vmInfo, 0)
+	for _, vmi := range vmsMapFromQuery {
+		if !(vmi.preemptedTime.IsZero() || vmi.startTime.IsZero()) {
+			preemptedVMs = append(preemptedVMs, vmi)
+		}
+	}
+	return preemptedVMs
+}
+
+// getConnect makes connection to snowflake and returns the connection.
+func getConnect(_ context.Context) (*gosql.DB, error) {
+	username, password, err := getSFCreds()
+	if err != nil {
+		return nil, err
+	}
+
+	dsn, err := sf.DSN(&sf.Config{
+		Account:   account,
+		Database:  database,
+		Schema:    schema,
+		Warehouse: warehouse,
+		Password:  password,
+		User:      username,
+	})
+	if err != nil {
+		return nil, err
+	}
+	db, err := gosql.Open("snowflake", dsn)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+// getSFCreds gets the snowflake credentials from the secrets manager
+func getSFCreds() (string, string, error) {
+	username := os.Getenv(sfUsernameEnv)
+	password := os.Getenv(sfPasswordEnv)
+	if username == "" {
+		return "", "", fmt.Errorf("environment variable %s is not set", sfUsernameEnv)
+	}
+	if password == "" {
+		return "", "", fmt.Errorf("environment variable %s is not set", sfPasswordEnv)
+	}
+	return username, password, nil
+}
 
 func TestAllowedLocalSSDCount(t *testing.T) {
 	for i, c := range []struct {

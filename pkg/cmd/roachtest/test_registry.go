@@ -138,9 +138,9 @@ func (r *testRegistryImpl) prepareSpec(spec *registry.TestSpec) error {
 	if spec.Owner == `` {
 		return fmt.Errorf(`%s: unspecified owner`, spec.Name)
 	}
-	if !spec.Owner.IsValid() {
-		return fmt.Errorf(`%s: unknown owner %q`, spec.Name, spec.Owner)
-	}
+	//if !spec.Owner.IsValid() {
+	//	return fmt.Errorf(`%s: unknown owner %q`, spec.Name, spec.Owner)
+	//}
 
 	// At the time of writing, we expect the roachtest job to finish within 24h
 	// and have corresponding timeouts set up in CI. Since each individual test

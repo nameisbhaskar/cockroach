@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "createcluster",
+    srcs = [
+        "command.go",
+        "flags.go",
+    ],
+    importpath = "github.com/cockroachdb/cockroach/pkg/cmd/drtprod/commands/createcluster",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/cmd/drtprod/commands/dnscmd",
+        "//pkg/cmd/drtprod/helpers",
+        "//pkg/roachprod",
+        "//pkg/roachprod/config",
+        "//pkg/roachprod/vm",
+        "//pkg/roachprod/vm/gce",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_pflag//:pflag",
+    ],
+)

@@ -386,6 +386,7 @@ type LogEntry struct {
 	Timestamp    string `json:"timestamp"`
 	ProtoPayload struct {
 		ResourceName string `json:"resourceName"`
+		MethodName   string `json:"methodName"`
 	} `json:"protoPayload"`
 }
 

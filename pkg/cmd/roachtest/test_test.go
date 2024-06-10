@@ -13,12 +13,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math/rand"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,6 +31,7 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/cmd/roachtest/roachtestflags"
 	"github.com/cockroachdb/cockroach/pkg/cmd/roachtest/spec"
 	"github.com/cockroachdb/cockroach/pkg/cmd/roachtest/test"
+	"github.com/cockroachdb/cockroach/pkg/cmd/roachtest/tests"
 	"github.com/cockroachdb/cockroach/pkg/roachprod"
 	"github.com/cockroachdb/cockroach/pkg/roachprod/logger"
 	"github.com/cockroachdb/cockroach/pkg/roachprod/vm"
@@ -48,6 +52,47 @@ func mkReg(t *testing.T) testRegistryImpl {
 	return makeTestRegistry()
 }
 
+func TestTTT(t *testing.T) {
+	wg := sync.WaitGroup{}
+	defer wg.Wait()
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(ii int) {
+			time.Sleep(5 * time.Second)
+			fmt.Println(ii)
+			wg.Done()
+		}(i)
+	}
+}
+
+func TestTT(t *testing.T) {
+	r := makeTestRegistry()
+	tests.RegisterTests(&r)
+	clusterSpecToCount := make(map[spec.ClusterSpec]int)
+	alltt := r.AllTests()
+	for i := range alltt {
+		alltt[i].Cluster.Lifetime = 0
+		alltt[i].Cluster.AWS.Zones = ""
+		alltt[i].Cluster.AWS.MachineType = ""
+		clusterSpecToCount[alltt[i].Cluster]++
+	}
+	t.Log(len(clusterSpecToCount), len(alltt))
+	type csvVal struct {
+		cs spec.ClusterSpec
+		vv string
+	}
+	clusterSpecToValue := make([]csvVal, 0)
+	for k, v := range clusterSpecToCount {
+		clusterSpecToValue = append(clusterSpecToValue,
+			csvVal{k, fmt.Sprintf("%v-=-%v\n", k.GetString(), v)})
+	}
+	slices.SortFunc(clusterSpecToValue, func(a, b csvVal) int {
+		return strings.Compare(a.cs.String(), b.cs.String())
+	})
+	for _, v := range clusterSpecToValue {
+		t.Logf("%s", v.vv)
+	}
+}
 func nilLogger() *logger.Logger {
 	lcfg := logger.Config{
 		Stdout: io.Discard,
