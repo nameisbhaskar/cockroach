@@ -39,6 +39,7 @@ type config struct {
 
 	Operations struct {
 		Parallelism int
+		Args        []string
 		Sets        []struct {
 			Cadence time.Duration
 			Filter  string

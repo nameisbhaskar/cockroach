@@ -193,6 +193,9 @@ func (r *opsRunner) runOperation(
 	if r.config.CertsDir != "" {
 		args = append(args, fmt.Sprintf("--certs-dir=%s", r.config.CertsDir))
 	}
+	if len(r.config.Operations.Args) > 0 {
+		args = append(args, r.config.Operations.Args...)
+	}
 
 	r.eventLogger.logOperationEvent(Event{
 		Type:       EventStart,

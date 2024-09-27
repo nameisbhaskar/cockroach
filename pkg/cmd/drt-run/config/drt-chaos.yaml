@@ -20,6 +20,8 @@ workloads:
     steps:
       - command: run
         args:
+          - --init
+          - --drop
           - --concurrency=8
           - --histograms=kv/stats.json
           - --db=kv
@@ -35,12 +37,15 @@ workloads:
           - --display-every=5s
           - --duration=12h
           - --tolerate-errors
-          - --enum
 operations:
   parallelism: 3
   sets:
     - filter: .*
       cadence: 5m
+  args:
+    - --datadog-api-key=<key to be replaced>
+    - --datadog-tags=env:development,cluster:workload-ldr,team:drt,service:drt-cockroachdb
+    - --datadog-app-key=1
 cloud: gce
 cluster:
   nodecount: 6
