@@ -18,3 +18,7 @@ const pollForStateInterval = 10 * time.Second
 
 // pollForStateTimeout is the timeout for the state change of the job
 const pollForStateTimeout = 10 * time.Minute
+
+var defaultEnvValuesString = map[string]string{
+	sinkConfig: "null://:100",
+}

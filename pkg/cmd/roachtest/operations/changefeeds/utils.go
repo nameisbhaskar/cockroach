@@ -10,6 +10,8 @@ import (
 	gosql "database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 const (
 	maxChangefeeds          = "OPS_MAX_CF"             // Max number of changefeeds allowed.
 	maxPctChangeFeedsScanOn = "OPS_MAX_PCT_CF_SCAN_ON" // Max percentage of changefeeds with scan "yes" or "only".
+	sinkConfig              = "SINK_CONFIG"
 )
 
 // jobDetails contains the job ID and its current state as obtained from the DB.
@@ -34,6 +37,11 @@ type jobDetails struct {
 	jobID   string                    // Unique ID of the changefeed job.
 	state   jobs.State                // Current state of the job (e.g., running, paused, etc.).
 	payload *jobspb.ChangefeedDetails // required payload details for the job
+}
+
+type sinkDetails struct {
+	uri string
+	pct int
 }
 
 // updatePayloadForJobs fetches additional changefeed payload details for specific jobs from the database
@@ -341,7 +349,7 @@ func createChangefeed(
 	}
 	options := make([]string, 0)
 	// Define the sink where the changefeed output will be sent.
-	sink, sinkOptions, err := getSinkConfigs(ctx, allCFJobs)
+	sink, sinkOptions, err := getSinkConfigs(allCFJobs)
 	if err != nil {
 		return "", err
 	}
@@ -362,9 +370,58 @@ func createChangefeed(
 }
 
 // getSinkConfigs returns the sink uri along with the options for creating the changefeed.
-// this will be extended later for more sinks
-func getSinkConfigs(_ context.Context, _ []*jobDetails) (string, []string, error) {
-	return "null://", make([]string, 0), nil
+func getSinkConfigs(jobs []*jobDetails) (string, []string, error) {
+	sinkConfigEnv := helpers.EnvOrDefaultString(sinkConfig, defaultEnvValuesString[sinkConfig])
+	configs := make(map[string]*sinkDetails)
+	expectedPctDist := make(map[string]int)
+	maxPctKey := ""
+	macPct := 0
+	err := parseConfigs(sinkConfigEnv, func(sinkUri string, value int) error {
+		u, err := url.Parse(sinkUri)
+		if err != nil {
+			return err
+		}
+		key := u.Scheme
+		configs[key] = &sinkDetails{uri: sinkUri, pct: value}
+		expectedPctDist[key] = value
+		if value >= macPct {
+			maxPctKey = key
+		}
+		return nil
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	activeCFSinksToCount := make(map[string]int)
+	for _, j := range jobs {
+		u, err := url.Parse(j.payload.SinkURI)
+		if err != nil {
+			return "", nil, err
+		}
+		activeCFSinksToCount[u.Scheme]++
+	}
+	runningCFSinksToPct := make(map[string]int)
+	totalActive := len(jobs)
+	for sink, count := range activeCFSinksToCount {
+		runningCFSinksToPct[sink] = count * 100 / totalActive
+	}
+	selectedKey := selectTheKey(expectedPctDist, runningCFSinksToPct, maxPctKey)
+	return configs[selectedKey].uri, make([]string, 0), nil
+}
+
+func selectTheKey(
+	expectedPctDist map[string]int, actualPctDist map[string]int, maxPctKey string,
+) string {
+	selectedKey := maxPctKey
+	maxDIffPct := 0
+	for theKey, expectedPct := range expectedPctDist {
+		actualPct, _ := actualPctDist[theKey]
+		if actualPct < expectedPct && (expectedPct-actualPct) > maxDIffPct {
+			maxDIffPct = expectedPct - actualPct
+			selectedKey = theKey
+		}
+	}
+	return selectedKey
 }
 
 // calculateScanOption determines whether the new changefeed should have an initial scan based on existing jobs.
@@ -404,4 +461,31 @@ func calculateScanOption(allCFJobs []*jobDetails) (string, string, error) {
 		resolved = ",resolved"
 	}
 	return initialScanValue, fmt.Sprintf("%s='%s'%s", changefeedbase.OptInitialScan, initialScanValue, resolved), nil
+}
+
+type configSetter func(key string, value int) error
+
+func parseConfigs(config string, cb configSetter) error {
+	configsArr := strings.Split(config, ",")
+	totalCount := 0
+	for _, c := range configsArr {
+		currentConfig := strings.Split(c, ":")
+		key := strings.Join(currentConfig[0:len(currentConfig)-1], ":")
+		value := currentConfig[len(currentConfig)-1]
+		v, err := strconv.ParseInt(value, 0, 0)
+		valueInt := int(v)
+		if err != nil {
+			return err
+		}
+		err = cb(key, valueInt)
+		if err != nil {
+			return err
+		}
+		totalCount += valueInt
+	}
+
+	if totalCount != 100 {
+		return fmt.Errorf("all sinks must account to 100%% in sink config, but it is only %d%%", totalCount)
+	}
+	return nil
 }

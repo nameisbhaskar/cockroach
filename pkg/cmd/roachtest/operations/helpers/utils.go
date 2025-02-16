@@ -272,3 +272,12 @@ func EnvOrDefaultInt(name string, value int) (int, error) {
 	}
 	return value, nil
 }
+
+// EnvOrDefaultString returns the value set by the specified environment
+// variable, if any, otherwise the specified default value.
+func EnvOrDefaultString(name, value string) string {
+	if str, present := os.LookupEnv(name); present {
+		return str
+	}
+	return value
+}
