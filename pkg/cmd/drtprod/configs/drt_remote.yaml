@@ -18,7 +18,7 @@ targets:
           clouds: gce
           gce-zones: "us-central1-a"
           nodes: 1
-          gce-machine-type: n2-standard-2
+          gce-machine-type: n2-standard-64
           username: drt
           lifetime: 8760h
           gce-image: "ubuntu-2204-jammy-v20240319"
