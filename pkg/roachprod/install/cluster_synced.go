@@ -1059,7 +1059,7 @@ func (c *SyncedCluster) Wait(ctx context.Context, l *logger.Logger) error {
 
 				if res.Err != nil {
 					time.Sleep(500 * time.Millisecond)
-					l.Printf("node %d is not started yet.", node)
+					l.Printf("node %d is not started yet: %v", node, res.Err)
 					continue
 				}
 				return res, nil
