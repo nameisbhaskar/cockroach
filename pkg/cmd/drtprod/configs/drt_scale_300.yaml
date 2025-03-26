@@ -8,8 +8,8 @@ environment:
   ROACHPROD_GCE_DEFAULT_PROJECT: cockroach-drt
   CLUSTER: drt-scale-300
   WORKLOAD_CLUSTER: workload-scale-300
-  CLUSTER_NODES: 150
-  TOTAL_PARTITIONS: 30
+  CLUSTER_NODES: 90
+  TOTAL_PARTITIONS: 15
   WORKLOAD_NODES: 15
 
 dependent_file_locations:
@@ -33,7 +33,7 @@ targets:
           clouds: gce
           gce-managed: true
           gce-enable-multiple-stores: true
-          gce-zones: "us-central1-a:50,us-central1-b:50,us-central1-c:50"
+          gce-zones: "us-central1-a:30,us-central1-b:30,us-central1-c:30"
           nodes: $CLUSTER_NODES
           gce-machine-type: n2-standard-16
           local-ssd: false
@@ -84,7 +84,7 @@ targets:
           - $WORKLOAD_CLUSTER
         flags:
           clouds: gce
-          gce-zones: "us-central1-f"
+          gce-zones: "us-central1-a,us-central1-b,us-central1-c"
           nodes: $WORKLOAD_NODES
           gce-machine-type: n2-standard-8
           os-volume-size: 100
@@ -148,38 +148,23 @@ targets:
     steps:
       - script: "pkg/cmd/drtprod/scripts/generate_tpcc_run.sh"
         args:
-          - cct_tpcc_6M # suffix added to script name tpcc_run_400k.sh
+          - cct_tpcc # suffix added to script name tpcc_run_400k.sh
           - false # determines whether to execute the script immediately on workload node
         flags:
-          db: cct_tpcc_6M
-          warehouses: 6000000
+          db: cct_tpcc
+          warehouses: 4000000
           active-warehouses: 500000
-          conns: 33333
-          max-rate: 2500
-          workers: 166666
+          workers: 33334
+          active-workers: 3334
+          conns: 3334
           duration: 12h
-          ramp: 1h
+          ramp: 15m
           wait: 0
-      - script: "pkg/cmd/drtprod/scripts/ycsb_init.sh"
-        args:
-          - 20M
-          - true
-        flags:
-          splits: 200
-          insert-count: 20000000
-  - target_name: ycsb_run
-    dependent_targets:
-      - post_tasks
-    steps:
-      - script: "pkg/cmd/drtprod/scripts/generate_ycsb_run.sh"
-        args:
-          - 20M
-          - false
-        flags:
-          max-rate: 66666
-          read-freq: 0.8
-          insert-freq: 0.1
-          update-freq: 0.05
-          delete-freq: 0.05
-          duration: 0
-          ramp: 5s
+          tolerate-errors: true
+#      - script: "pkg/cmd/drtprod/scripts/ycsb_init.sh"
+#        args:
+#          - 400M
+#          - false
+#        flags:
+#          splits: 400
+#          insert-count: 400000000
