@@ -173,7 +173,7 @@ func csvServerPaths(
 	}
 
 	var paths []string
-	for rowIdx := 0; ; {
+	for rowIdx := table.InitialRows.StartIndex; ; {
 		chunkRowStart, chunkRowEnd := rowIdx, rowIdx+rowStep
 		if chunkRowEnd > table.InitialRows.NumBatches {
 			chunkRowEnd = table.InitialRows.NumBatches

@@ -708,6 +708,7 @@ func (w *tpcc) Tables() []workload.Table {
 			),
 		),
 		InitialRows: workload.BatchedTuples{
+			StartIndex: 2,
 			NumBatches: w.warehouses,
 			FillBatch:  w.tpccWarehouseInitialRowBatch,
 		},
@@ -730,6 +731,7 @@ func (w *tpcc) Tables() []workload.Table {
 			maybeAddLocalityRegionalByRow(w.multiRegionCfg, `d_w_id`),
 		),
 		InitialRows: workload.BatchedTuples{
+			StartIndex: 20,
 			NumBatches: numDistrictsPerWarehouse * w.warehouses,
 			FillBatch:  w.tpccDistrictInitialRowBatch,
 		},
@@ -752,6 +754,7 @@ func (w *tpcc) Tables() []workload.Table {
 			maybeAddLocalityRegionalByRow(w.multiRegionCfg, `c_w_id`),
 		),
 		InitialRows: workload.BatchedTuples{
+			StartIndex: 60000,
 			NumBatches: numCustomersPerWarehouse * w.warehouses,
 			FillBatch:  w.tpccCustomerInitialRowBatch,
 		},
@@ -764,6 +767,7 @@ func (w *tpcc) Tables() []workload.Table {
 			maybeAddLocalityRegionalByRow(w.multiRegionCfg, `h_w_id`),
 		),
 		InitialRows: workload.BatchedTuples{
+			StartIndex: 60000,
 			NumBatches: numHistoryPerWarehouse * w.warehouses,
 			FillBatch:  w.tpccHistoryInitialRowBatch,
 		},
@@ -782,6 +786,7 @@ func (w *tpcc) Tables() []workload.Table {
 			maybeAddLocalityRegionalByRow(w.multiRegionCfg, `o_w_id`),
 		),
 		InitialRows: workload.BatchedTuples{
+			StartIndex: 60000,
 			NumBatches: numOrdersPerWarehouse * w.warehouses,
 			FillBatch:  w.tpccOrderInitialRowBatch,
 		},
@@ -794,6 +799,7 @@ func (w *tpcc) Tables() []workload.Table {
 			maybeAddLocalityRegionalByRow(w.multiRegionCfg, `no_w_id`),
 		),
 		InitialRows: workload.BatchedTuples{
+			StartIndex: 18000,
 			NumBatches: numNewOrdersPerWarehouse * w.warehouses,
 			FillBatch:  w.tpccNewOrderInitialRowBatch,
 		},
@@ -805,6 +811,7 @@ func (w *tpcc) Tables() []workload.Table {
 			tpccItemSchema,
 		),
 		InitialRows: workload.BatchedTuples{
+			StartIndex: 100000,
 			NumBatches: numItems,
 			FillBatch:  w.tpccItemInitialRowBatch,
 		},
@@ -823,6 +830,7 @@ func (w *tpcc) Tables() []workload.Table {
 			maybeAddLocalityRegionalByRow(w.multiRegionCfg, `s_w_id`),
 		),
 		InitialRows: workload.BatchedTuples{
+			StartIndex: 200000,
 			NumBatches: numStockPerWarehouse * w.warehouses,
 			FillBatch:  w.tpccStockInitialRowBatch,
 		},
@@ -835,6 +843,7 @@ func (w *tpcc) Tables() []workload.Table {
 			maybeAddLocalityRegionalByRow(w.multiRegionCfg, `ol_w_id`),
 		),
 		InitialRows: workload.BatchedTuples{
+			StartIndex: 598215,
 			NumBatches: numOrdersPerWarehouse * w.warehouses,
 			FillBatch:  w.tpccOrderLineInitialRowBatch,
 		},

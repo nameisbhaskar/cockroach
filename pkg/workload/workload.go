@@ -203,6 +203,7 @@ func (t Table) GetResolvedName() tree.TableName {
 // etc). Tuples are generated in batches of arbitrary size. Each batch has an
 // index in `[0,NumBatches)` and a batch can be generated given only its index.
 type BatchedTuples struct {
+	StartIndex int
 	// NumBatches is the number of batches of tuples.
 	NumBatches int
 	// FillBatch is a function to deterministically compute a columnar-batch of
