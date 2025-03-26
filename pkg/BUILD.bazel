@@ -1165,6 +1165,8 @@ GO_TARGETS = [
     "//pkg/cmd/drtprod/cli/commands:commands_test",
     "//pkg/cmd/drtprod/cli:cli",
     "//pkg/cmd/drtprod/helpers:helpers",
+    "//pkg/cmd/drtprod/running:running",
+    "//pkg/cmd/drtprod/running:running_lib",
     "//pkg/cmd/drtprod:drtprod",
     "//pkg/cmd/drtprod:drtprod_lib",
     "//pkg/cmd/fuzz:fuzz",
