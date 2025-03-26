@@ -1,0 +1,18 @@
+phases:
+  - phase_name: Cluster Setup
+    description: Setup the cluster and initialize the workload.
+    execution_configuration: pkg/cmd/drtprod/configs/phase/drt_bhaskar.yaml
+  - phase_name: Baseline Performance
+    description: Normal load, establishing steady-state throughput.
+    execution_time: 15s
+    execution_configuration: pkg/cmd/drtprod/configs/phase/drt_tpcc.yaml
+  - phase_name: Cluster Setup 2
+    description: Setup the cluster and initialize the workload.
+    execution_configuration: pkg/cmd/drtprod/configs/phase/drt_bhaskar.yaml
+  - phase_name: Baseline Performance 2
+    description: Normal load, establishing steady-state throughput.
+    execution_time: 15s
+    execution_configuration: pkg/cmd/drtprod/configs/phase/drt_tpcc.yaml
+  - phase_name: Baseline Performance 3
+    description: Normal load, establishing steady-state throughput.
+    execution_configuration: pkg/cmd/drtprod/configs/phase/drt_bhaskar.yaml
