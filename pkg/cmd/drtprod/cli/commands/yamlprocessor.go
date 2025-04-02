@@ -113,11 +113,12 @@ type step struct {
 	Command string `yaml:"command"` // The command to execute
 	Script  string `yaml:"script"`  // The script to execute
 
-	Args              []string               `yaml:"args"`                // Arguments to pass to the command or script
-	Flags             map[string]interface{} `yaml:"flags"`               // Flags to pass to the command or script
-	ContinueOnFailure bool                   `yaml:"continue_on_failure"` // Whether to continue on failure
-	OnRollback        []step                 `yaml:"on_rollback"`         // Steps to execute if rollback is needed
-	Wait              int                    `yaml:"wait"`                // Wait time in seconds before executing the next step
+	Args               []string               `yaml:"args"`                // Arguments to pass to the command or script
+	Flags              map[string]interface{} `yaml:"flags"`               // Flags to pass to the command or script
+	ContinueOnFailure  bool                   `yaml:"continue_on_failure"` // Whether to continue on failure
+	OnRollback         []step                 `yaml:"on_rollback"`         // Steps to execute if rollback is needed
+	Wait               int                    `yaml:"wait"`                // Wait time in seconds before executing the next step
+	TerminationChecker *step                  `yaml:"termination_checker"` // The step to check for termination
 }
 
 // target defines a target cluster with associated steps to be executed.
@@ -125,7 +126,7 @@ type target struct {
 	TargetName             string   `yaml:"target_name"`              // Name of the target cluster
 	DependentTargets       []string `yaml:"dependent_targets"`        // targets should complete before starting this target
 	IgnoreDependentFailure bool     `yaml:"ignore_dependent_failure"` // ignore and continue even dependent targets have failed
-	Steps                  []step   `yaml:"steps"`                    // Steps to execute on the target cluster
+	Steps                  []*step  `yaml:"steps"`                    // Steps to execute on the target cluster
 	commands               []*command
 }
 
@@ -143,6 +144,7 @@ type command struct {
 	continueOnFailure bool       // Whether to continue on failure
 	rollbackCmds      []*command // Rollback commands to execute in case of failure
 	wait              int        // Wait time in seconds before executing the next step
+	isAsync           bool
 }
 
 // String returns the command as a string for easy printing.
@@ -571,7 +573,7 @@ func executeCommands(ctx context.Context, logPrefix string, cmds []*command) err
 }
 
 // generateCmdsFromSteps generates the commands to be executed for a given cluster and steps.
-func generateCmdsFromSteps(clusterName string, steps []step) ([]*command, error) {
+func generateCmdsFromSteps(clusterName string, steps []*step) ([]*command, error) {
 	cmds := make([]*command, 0)
 	for _, s := range steps {
 		// Generate a command from each step
@@ -589,7 +591,7 @@ func generateCmdsFromSteps(clusterName string, steps []step) ([]*command, error)
 
 // generateStepCmd generates a command for a given step within a target.
 // It handles both command-based and script-based steps.
-func generateStepCmd(clusterName string, s step) (*command, error) {
+func generateStepCmd(clusterName string, s *step) (*command, error) {
 	var cmd *command
 	var err error
 
@@ -616,19 +618,19 @@ func generateStepCmd(clusterName string, s step) (*command, error) {
 }
 
 // generateCmdFromCommand creates a command from a step that uses a command.
-func generateCmdFromCommand(s step, _ string) (*command, error) {
+func generateCmdFromCommand(s *step, _ string) (*command, error) {
 	// Prepend the cluster name to the command arguments
 	s.Args = append([]string{s.Command}, s.Args...)
 	return getCommand(s, "drtprod")
 }
 
 // generateCmdFromScript creates a command from a step that uses a script.
-func generateCmdFromScript(s step, _ string) (*command, error) {
+func generateCmdFromScript(s *step, _ string) (*command, error) {
 	return getCommand(s, s.Script)
 }
 
 // getCommand constructs the final command with all arguments and flags.
-func getCommand(step step, name string) (*command, error) {
+func getCommand(step *step, name string) (*command, error) {
 	args := make([]string, 0)
 	for _, arg := range step.Args {
 		args = append(args, os.ExpandEnv(arg))

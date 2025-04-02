@@ -17,3 +17,7 @@ targets:
       - script: ls
         args:
           - cockroach
+        termination_checker:
+            script: ls
+            args:
+                - -l
