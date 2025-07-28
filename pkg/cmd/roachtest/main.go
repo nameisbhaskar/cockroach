@@ -226,10 +226,71 @@ Check --parallelism, --run-forever and --wait-before-next-execution flags`,
 	}
 	roachtestflags.AddRunOpsFlags(runOperationCmd.Flags())
 
+	var runOperationTemporalServerCmd = &cobra.Command{
+		// Don't display usage when the command fails.
+		SilenceUsage: true,
+		Use:          "run-operation-worker [clusterName]",
+		Short:        "start the Temporal server for running operations",
+		Long: `Start the Temporal workflow server for running operations on an existing roachprod cluster.
+This command starts the Temporal workflow infrastructure and keeps it running until interrupted.
+The provided cluster name must already exist in roachprod; this command does no setup/teardown of clusters.
+
+After starting the server, use the run-operation-temporal-client command to submit operations to run.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Printf("\nStarting Temporal workflow server for cluster %s.\n\n", args[0])
+			cmd.SilenceUsage = true
+			return startOperationsWorkflow(args[0])
+		},
+	}
+	roachtestflags.AddRunOpsFlags(runOperationTemporalServerCmd.Flags())
+
+	// aiPrompt is the prompt to use for the AI agent when no operation regex is provided
+	var aiPrompt string
+
+	var runOperationTemporalClientCmd = &cobra.Command{
+		// Don't display usage when the command fails.
+		SilenceUsage: true,
+		Use:          "run-operation-workflow [clusterName] [regex...]",
+		Short:        "submit an operation to a running Temporal server",
+		Long: `Submit an operation to a running Temporal workflow server.
+If multiple operations are matched by the passed-in regex filter, one operation
+is chosen at random and run. The provided cluster name must already exist in roachprod;
+this command does no setup/teardown of clusters.
+
+If regex is "ai" or empty, the command will use OpenAI to process the request and determine
+the appropriate operations based on the prompt provided with --ai-prompt.
+
+The Temporal workflow server must be running (started with run-operation-worker).`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			operationRegex := args[1]
+			clusterName := args[0]
+
+			// If regex is "ai", use AI agent with the provided prompt
+			if operationRegex == "ai" {
+				operationRegex = ""
+				fmt.Printf("\nUsing AI agent to process request on %s with prompt: %s\n\n", clusterName, aiPrompt)
+			} else {
+				fmt.Printf("\nSubmitting operation %s on %s to Temporal workflow server.\n\n", operationRegex, clusterName)
+			}
+
+			cmd.SilenceUsage = true
+			return submitOperationRequest(operations.RegisterOperations, operationRegex, clusterName, aiPrompt)
+		},
+	}
+
+	// Add AI prompt flag
+	runOperationTemporalClientCmd.Flags().StringVar(&aiPrompt, "ai-prompt", "I want to add an index to the database", "Prompt to use for the AI agent when regex is 'ai'")
+
+	roachtestflags.AddRunOpsFlags(runOperationTemporalClientCmd.Flags())
+
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(benchCmd)
 	rootCmd.AddCommand(runOperationCmd)
+	rootCmd.AddCommand(runOperationTemporalServerCmd)
+	rootCmd.AddCommand(runOperationTemporalClientCmd)
 
 	var listOperationCmd = &cobra.Command{
 		Use:   "list-operations",
