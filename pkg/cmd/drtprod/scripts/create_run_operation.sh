@@ -35,7 +35,7 @@ fi
 export ROACHPROD_DISABLED_PROVIDERS=IBM
 
 # sync cluster is needed for operations
-drtprod ssh ${WORKLOAD_CLUSTER} -- "ROACHPROD_GCE_DEFAULT_PROJECT=${ROACHPROD_GCE_DEFAULT_PROJECT} ./roachprod sync"
+drtprod ssh ${WORKLOAD_CLUSTER} -- "ROACHPROD_GCE_DEFAULT_PROJECT=${ROACHPROD_GCE_DEFAULT_PROJECT} ./drtprod sync"
 
 # the ssh keys of all workload nodes should be setup on the crdb nodes for the operations
 drtprod ssh ${CLUSTER} -- "echo \"$(drtprod run ${WORKLOAD_CLUSTER} -- cat ./.ssh/id_rsa.pub|grep ssh-rsa)\" >> ./.ssh/authorized_keys"
@@ -61,6 +61,7 @@ export ROACHPROD_GCE_DEFAULT_PROJECT=${ROACHPROD_GCE_DEFAULT_PROJECT}
 export ROACHPROD_DNS=${ROACHPROD_DNS}
 ${pwd}/roachtest-operations run-operation ${CLUSTER} \"${operation_regex}\" --datadog-api-key ${DD_API_KEY} \
 --datadog-tags env:development,cluster:${WORKLOAD_CLUSTER},team:drt,service:drt-cockroachdb \
+--wait-before-cleanup 1m \
 --datadog-app-key 1 --certs-dir ./certs  | tee -a roachtest_ops_${identifier}.log
 EOF"
   drtprod ssh "${WORKLOAD_CLUSTER}":1 -- chmod +x "${pwd}"/"${filename}"

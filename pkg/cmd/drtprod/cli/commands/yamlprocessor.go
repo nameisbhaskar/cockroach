@@ -56,12 +56,18 @@ var (
 func GetYamlProcessor(ctx context.Context) *cobra.Command {
 	displayOnly := false
 	remoteConfigYaml := ""
+	useWorkflow := false
 	userProvidedTargetNames := make([]string, 0)
 	cobraCmd := &cobra.Command{
 		Use:   "execute <yaml file> [flags]",
 		Short: "Executes the commands in sequence as specified in the YAML",
 		Long: `Executes the commands in sequence as specified in the YAML.
 You can also specify the rollback commands in case of a step failure.
+Slack Integration (only valid for workflow execution) is used to signal the workflow:
+  To enable Slack integration for workflow signaling, set the following environment variables:
+  - SLACK_BOT_TOKEN: Slack bot token for authentication
+  - SLACK_CHANNEL: Slack channel to post messages to
+  - SLACK_APP_TOKEN: (Optional) Slack app-level token for Socket Mode (for interactive buttons)
 `,
 		Args: cobra.ExactArgs(1),
 		// Wraps the command execution with additional error handling
@@ -72,7 +78,7 @@ You can also specify the rollback commands in case of a step failure.
 				return err
 			}
 			yamlFileLocation := args[0]
-			return processYamlFile(ctx, yamlFileLocation, displayOnly, remoteConfigYaml, userProvidedTargetNames)
+			return processYamlFile(ctx, yamlFileLocation, displayOnly, remoteConfigYaml, useWorkflow, userProvidedTargetNames)
 		}),
 	}
 	cobraCmd.Flags().BoolVarP(&displayOnly,
@@ -83,6 +89,12 @@ You can also specify the rollback commands in case of a step failure.
 		"remote-config-yaml", "r", "", "runs the deployment remotely in the monitor node. This is "+
 			"useful for long running deployments as the local execution completes after creating a remote cluster. The remote "+
 			"config YAML provides the configuration of the remote monitor cluster.")
+	cobraCmd.Flags().BoolVarP(&useWorkflow,
+		"workflow", "", false, "runs the YAML execution in a workflow.")
+
+	// Add the workflow subcommand
+	cobraCmd.AddCommand(GetYamlWorkflowCommand(ctx))
+
 	return cobraCmd
 }
 
@@ -140,34 +152,41 @@ type yamlConfig struct {
 
 // command is a simplified representation of a shell command that needs to be executed.
 type command struct {
-	name              string     // Command name
-	args              []string   // Command arguments
-	continueOnFailure bool       // Whether to continue on failure
-	rollbackCmds      []*command // Rollback commands to execute in case of failure
-	waitAfter         int        // Wait time in seconds after executing the command
-	waitBefore        int        // Wait time in seconds before executing the command
+	Name              string     `yaml:"name"`                // Command Name
+	Args              []string   `yaml:"args"`                // Command arguments
+	ContinueOnFailure bool       `yaml:"continue_on_failure"` // Whether to continue on failure
+	RollbackCmds      []*command `yaml:"on_rollback"`         // Rollback commands to execute in case of failure
+	WaitAfter         int        `yaml:"wait_before"`         // Wait time in seconds after executing the command
+	WaitBefore        int        `yaml:"wait_after"`          // Wait time in seconds before executing the command
 }
 
 // String returns the command as a string for easy printing.
 func (c *command) String() string {
-	cmdStr := c.name
-	for _, arg := range c.args {
+	cmdStr := c.Name
+	for _, arg := range c.Args {
 		cmdStr = fmt.Sprintf("%s %s", cmdStr, arg)
 	}
 	return cmdStr
 }
 
 // processYamlFile is responsible for processing the yaml configuration. The YAML commands can be executed
-// either locally or in a remote VM based on whether "remoteConfigYaml" is provided or not.
+// in one of three ways:
+// 1. Locally - when neither remoteConfigYaml nor useWorkflow is provided
+// 2. In a remote VM - when remoteConfigYaml is provided
+// 3. In a workflow - when useWorkflow is true
+//
 // If the remoteConfigYaml is provided, a new VM is created based on the configuration provided in the remoteConfigYaml
 // is created and the current YAML is copied across along with the required scripts and binaries and execution
 // is run there. This is useful for long-running deployments where the local deployment just delegates
 // the execution of the deployment to the remote machine.
+//
+// If useWorkflow is true, the YAML is executed in a workflow
 func processYamlFile(
 	ctx context.Context,
 	yamlFileLocation string,
 	displayOnly bool,
 	remoteConfigYaml string,
+	useWorkflow bool,
 	userProvidedTargetNames []string,
 ) (err error) {
 	if _, err = os.Stat(yamlFileLocation); err != nil {
@@ -190,7 +209,7 @@ func processYamlFile(
 			return errors.Wrapf(err, "error reading %s", remoteConfigYaml)
 		}
 	}
-	return processYaml(ctx, yamlFileLocation, yamlContent, remoteDeployYamlContent, displayOnly, userProvidedTargetNames)
+	return processYaml(ctx, yamlFileLocation, yamlContent, remoteDeployYamlContent, displayOnly, useWorkflow, userProvidedTargetNames)
 }
 
 // processYaml processes the YAML content as explained in processYamlFile. A separate function taking the binary direct
@@ -200,6 +219,7 @@ func processYaml(
 	yamlFileLocation string,
 	yamlContent, remoteDeployYamlContent []byte,
 	displayOnly bool,
+	useWorkflow bool,
 	userProvidedTargetNames []string,
 ) error {
 	// Unmarshal the YAML content into the yamlConfig struct
@@ -219,6 +239,10 @@ func processYaml(
 			return err
 		}
 		return processYamlRemote(ctx, yamlFileLocation, clusterConfig, remoteDeploymentConfig, displayOnly, userProvidedTargetNames)
+	}
+	if useWorkflow {
+		// Execute the YAML in a workflow
+		return processYamlWorkflow(ctx, yamlFileLocation, clusterConfig, displayOnly, userProvidedTargetNames)
 	}
 	return processYamlConfig(ctx, clusterConfig, displayOnly, userProvidedTargetNames)
 }
@@ -255,7 +279,7 @@ func processYamlRemote(
 	if displayOnly {
 		return errors.Errorf("display option is not valid for remote execution")
 	}
-	// the MONITOR_CLUSTER is overwritten with the YAML file name
+	// the MONITOR_CLUSTER is overwritten with the YAML file Name
 	yamlFileName := strings.Split(filepath.Base(yamlFileLocation), ".")[0]
 	monitorClusterName := fmt.Sprintf("%s-monitor", strings.ReplaceAll(yamlFileName, "_", "-"))
 	remoteDeploymentConfig.Environment["MONITOR_CLUSTER"] = monitorClusterName
@@ -432,7 +456,7 @@ func processTargets(
 			continue
 		}
 		g.Go(func() error {
-			// defer complete the wait group for the dependent targets to proceed
+			// defer complete the Wait group for the dependent targets to proceed
 			defer waitGroupTracker[t.TargetName].Done()
 			err := waitForDependentTargets(t, waitGroupTracker, sr)
 			// dependent targets must be success for executing further commands
@@ -459,8 +483,8 @@ func waitForDependentTargets(
 	for _, dt := range t.DependentTargets {
 		if twg, ok := waitGroupTracker[dt]; ok {
 			fmt.Printf("[%s] waiting on <%s>\n", t.TargetName, dt)
-			// wait on the dependent targets
-			// it would not matter if we wait sequentially as all dependent targets need to complete
+			// Wait on the dependent targets
+			// it would not matter if we Wait sequentially as all dependent targets need to complete
 			twg.Wait()
 			//	if we reach here, the dependent target execution has finished. So, there will be an entry in the
 			// status registry for the dependent target. The only reason why an entry could be missing is that the
@@ -486,15 +510,15 @@ func shouldSkipTarget(
 	return len(userProvidedTargetNames) > 0 && !ok
 }
 
-// buildTargetCmdsAndRegisterWaitGroups builds the commands per target and registers the target to a wait group
+// buildTargetCmdsAndRegisterWaitGroups builds the commands per target and registers the target to a Wait group
 // tracker and returns the same.
-// The wait group tracker is a map of target name to a wait group. A delta is added to the wait group that is
-// marked done when the specific target is complete. The wait group is use by the dependent targets to wait for
+// The Wait group tracker is a map of target Name to a Wait group. A delta is added to the Wait group that is
+// marked done when the specific target is complete. The Wait group is use by the dependent targets to Wait for
 // the completion of the target.
 func buildTargetCmdsAndRegisterWaitGroups(
 	targets []target, targetNameMap map[string]struct{}, userProvidedTargetNames []string,
 ) (map[string]*sync.WaitGroup, error) {
-	// map of target name to a wait group. The wait group is used by dependent target to wait for the target to complete
+	// map of target Name to a Wait group. The Wait group is used by dependent target to Wait for the target to complete
 	waitGroupTracker := make(map[string]*sync.WaitGroup)
 
 	// iterate over all the targets and create all the commands that should be executed for the target
@@ -509,7 +533,7 @@ func buildTargetCmdsAndRegisterWaitGroups(
 			fmt.Printf("Ignoring execution for target %s\n", t.TargetName)
 			continue
 		}
-		// add a delta wait for this target. This is added here so that when the execution loop is run, we need not
+		// add a delta Wait for this target. This is added here so that when the execution loop is run, we need not
 		// worry about the sequence
 		waitGroupTracker[t.TargetName] = &sync.WaitGroup{}
 		waitGroupTracker[t.TargetName].Add(1)
@@ -532,7 +556,7 @@ func displayCommands(t target) {
 	}
 	for _, cmd := range t.commands {
 		fmt.Printf("|-> %s\n", cmd)
-		for _, rCmd := range cmd.rollbackCmds {
+		for _, rCmd := range cmd.RollbackCmds {
 			fmt.Printf("    |-> (Rollback) %s\n", rCmd)
 		}
 	}
@@ -541,7 +565,7 @@ func displayCommands(t target) {
 // executeCommands runs the list of commands for a specific target.
 // It handles output streaming and error management.
 func executeCommands(ctx context.Context, logPrefix string, cmds []*command) error {
-	// rollbackCmds maintains a list of commands to be executed in case of a failure
+	// RollbackCmds maintains a list of commands to be executed in case of a failure
 	rollbackCmds := make([]*command, 0)
 
 	// Defer rollback execution if any rollback commands are added
@@ -552,14 +576,14 @@ func executeCommands(ctx context.Context, logPrefix string, cmds []*command) err
 	}()
 
 	for _, cmd := range cmds {
-		if cmd.waitBefore > 0 {
-			fmt.Printf("[%s] Waiting for %d seconds\n", logPrefix, cmd.waitBefore)
-			time.Sleep(time.Duration(cmd.waitBefore) * time.Second)
+		if cmd.WaitBefore > 0 {
+			fmt.Printf("[%s] Waiting for %d seconds\n", logPrefix, cmd.WaitBefore)
+			time.Sleep(time.Duration(cmd.WaitBefore) * time.Second)
 		}
 		fmt.Printf("[%s] Starting <%v>\n", logPrefix, cmd)
-		err := commandExecutor(ctx, logPrefix, cmd.name, cmd.args...)
+		err := commandExecutor(ctx, logPrefix, cmd.Name, cmd.Args...)
 		if err != nil {
-			if !cmd.continueOnFailure {
+			if !cmd.ContinueOnFailure {
 				// Return the error if not configured to continue on failure
 				return err
 			}
@@ -567,19 +591,19 @@ func executeCommands(ctx context.Context, logPrefix string, cmds []*command) err
 			fmt.Printf("[%s] Failed <%v>, Error Ignored: %v\n", logPrefix, cmd, err)
 		} else {
 			fmt.Printf("[%s] Completed <%v>\n", logPrefix, cmd)
-			if cmd.waitAfter > 0 {
-				fmt.Printf("[%s] Waiting for %d seconds\n", logPrefix, cmd.waitAfter)
-				time.Sleep(time.Duration(cmd.waitAfter) * time.Second)
+			if cmd.WaitAfter > 0 {
+				fmt.Printf("[%s] Waiting for %d seconds\n", logPrefix, cmd.WaitAfter)
+				time.Sleep(time.Duration(cmd.WaitAfter) * time.Second)
 			}
 		}
 
 		// Add rollback commands if specified
-		if len(cmd.rollbackCmds) > 0 {
-			for i := 0; i < len(cmd.rollbackCmds); i++ {
+		if len(cmd.RollbackCmds) > 0 {
+			for i := 0; i < len(cmd.RollbackCmds); i++ {
 				// rollback command failures are ignored
-				cmd.rollbackCmds[i].continueOnFailure = true
+				cmd.RollbackCmds[i].ContinueOnFailure = true
 			}
-			rollbackCmds = append(cmd.rollbackCmds, rollbackCmds...)
+			rollbackCmds = append(cmd.RollbackCmds, rollbackCmds...)
 		}
 	}
 	// Clear rollback commands if all commands executed successfully
@@ -623,19 +647,19 @@ func generateStepCmd(clusterName string, s step) (*command, error) {
 
 	// Generate rollback commands if specified
 	if len(s.OnRollback) > 0 {
-		cmd.rollbackCmds, err = generateCmdsFromSteps(clusterName, s.OnRollback)
+		cmd.RollbackCmds, err = generateCmdsFromSteps(clusterName, s.OnRollback)
 		if err != nil {
 			return nil, err
 		}
 	}
-	cmd.waitAfter = s.WaitAfter
-	cmd.waitBefore = s.WaitBefore
+	cmd.WaitAfter = s.WaitAfter
+	cmd.WaitBefore = s.WaitBefore
 	return cmd, err
 }
 
 // generateCmdFromCommand creates a command from a step that uses a command.
 func generateCmdFromCommand(s step, _ string) (*command, error) {
-	// Prepend the cluster name to the command arguments
+	// Prepend the cluster Name to the command arguments
 	s.Args = append([]string{s.Command}, s.Args...)
 	return getCommand(s, "drtprod")
 }
@@ -675,8 +699,8 @@ func getCommand(step step, name string) (*command, error) {
 	}
 
 	return &command{
-		name:              name,
-		args:              args,
-		continueOnFailure: step.ContinueOnFailure,
+		Name:              name,
+		Args:              args,
+		ContinueOnFailure: step.ContinueOnFailure,
 	}, nil
 }

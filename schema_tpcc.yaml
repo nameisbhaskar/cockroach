@@ -1,0 +1,1195 @@
+customer:
+  count: 10000
+  columns:
+    c_balance:
+      type: float
+      args:
+        max: 9.999999999e+07
+        min: -9.999999999e+07
+        null_pct: 0
+        round: 2
+        seed: 24
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_city:
+      type: string
+      args:
+        max: 20
+        min: 1
+        null_pct: 0
+        seed: 1
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_credit:
+      type: string
+      args:
+        max: 2
+        min: 2
+        null_pct: 0
+        seed: 60
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_credit_lim:
+      type: float
+      args:
+        max: 9.999999999e+07
+        min: -9.999999999e+07
+        null_pct: 0
+        round: 2
+        seed: 61
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_d_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 24
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__district.d_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 713077610
+    c_data:
+      type: string
+      args:
+        max: 500
+        min: 1
+        null_pct: 0
+        seed: 27
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_delivery_cnt:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0
+        seed: 75
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_discount:
+      type: float
+      args:
+        max: 0.9999
+        min: -0.9999
+        null_pct: 0
+        round: 4
+        seed: 98
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_first:
+      type: string
+      args:
+        max: 16
+        min: 1
+        null_pct: 0
+        seed: 15
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 94
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: false
+    c_last:
+      type: string
+      args:
+        max: 16
+        min: 1
+        null_pct: 0
+        seed: 59
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_middle:
+      type: string
+      args:
+        max: 2
+        min: 2
+        null_pct: 0
+        seed: 27
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_payment_cnt:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0
+        seed: 10
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_phone:
+      type: string
+      args:
+        max: 16
+        min: 16
+        null_pct: 0
+        seed: 16
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_since:
+      type: timestamp
+      args:
+        end: "2025-01-01"
+        format: '%Y-%m-%d %H:%M:%S.%f'
+        null_pct: 0
+        seed: 2
+        start: "2000-01-01"
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_state:
+      type: string
+      args:
+        max: 2
+        min: 2
+        null_pct: 0
+        seed: 61
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_street_1:
+      type: string
+      args:
+        max: 20
+        min: 1
+        null_pct: 0
+        seed: 36
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_street_2:
+      type: string
+      args:
+        max: 20
+        min: 1
+        null_pct: 0
+        seed: 71
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_w_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 51
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__district.d_w_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 713077610
+    c_ytd_payment:
+      type: float
+      args:
+        max: 9.999999999e+07
+        min: -9.999999999e+07
+        null_pct: 0
+        round: 2
+        seed: 46
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    c_zip:
+      type: string
+      args:
+        max: 9
+        min: 9
+        null_pct: 0
+        seed: 50
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+  pk:
+  - c_w_id
+  - c_d_id
+  - c_id
+  sort-by: []
+  original_table: tpcc.public.customer
+  column_order:
+  - c_id
+  - c_d_id
+  - c_w_id
+  - c_first
+  - c_middle
+  - c_last
+  - c_street_1
+  - c_street_2
+  - c_city
+  - c_state
+  - c_zip
+  - c_phone
+  - c_since
+  - c_credit
+  - c_credit_lim
+  - c_discount
+  - c_balance
+  - c_ytd_payment
+  - c_payment_cnt
+  - c_delivery_cnt
+  - c_data
+  table_number: 2
+district:
+  count: 10000
+  columns:
+    d_city:
+      type: string
+      args:
+        max: 20
+        min: 1
+        null_pct: 0
+        seed: 88
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    d_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 69
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: false
+    d_name:
+      type: string
+      args:
+        max: 10
+        min: 1
+        null_pct: 0
+        seed: 54
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    d_next_o_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0
+        seed: 18
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    d_state:
+      type: string
+      args:
+        max: 2
+        min: 2
+        null_pct: 0
+        seed: 59
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    d_street_1:
+      type: string
+      args:
+        max: 20
+        min: 1
+        null_pct: 0
+        seed: 43
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    d_street_2:
+      type: string
+      args:
+        max: 20
+        min: 1
+        null_pct: 0
+        seed: 90
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    d_tax:
+      type: float
+      args:
+        max: 0.9999
+        min: -0.9999
+        null_pct: 0
+        round: 4
+        seed: 23
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    d_w_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 68
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__warehouse.w_id
+      fk_mode: block
+      fanout: 10
+    d_ytd:
+      type: float
+      args:
+        max: 9.999999999e+07
+        min: -9.999999999e+07
+        null_pct: 0
+        round: 2
+        seed: 73
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    d_zip:
+      type: string
+      args:
+        max: 9
+        min: 9
+        null_pct: 0
+        seed: 76
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+  pk:
+  - d_w_id
+  - d_id
+  sort-by: []
+  original_table: tpcc.public.district
+  column_order:
+  - d_id
+  - d_w_id
+  - d_name
+  - d_street_1
+  - d_street_2
+  - d_city
+  - d_state
+  - d_zip
+  - d_tax
+  - d_ytd
+  - d_next_o_id
+  table_number: 1
+history:
+  count: 10000
+  columns:
+    h_amount:
+      type: float
+      args:
+        max: 99.99
+        min: -99.99
+        null_pct: 0.1
+        round: 2
+        seed: 78
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    h_c_d_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0
+        seed: 7
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__customer.c_d_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 272712477
+    h_c_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0
+        seed: 56
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__customer.c_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 272712477
+    h_c_w_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0
+        seed: 95
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__customer.c_w_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 272712477
+    h_d_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0
+        seed: 67
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__district.d_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 492417841
+    h_data:
+      type: string
+      args:
+        max: 24
+        min: 1
+        null_pct: 0.1
+        seed: 47
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    h_date:
+      type: timestamp
+      args:
+        end: "2025-01-01"
+        format: '%Y-%m-%d %H:%M:%S.%f'
+        null_pct: 0.1
+        seed: 67
+        start: "2000-01-01"
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    h_w_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 70
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__district.d_w_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 492417841
+    rowid:
+      type: uuid
+      args:
+        null_pct: 0
+        seed: 34
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: false
+  pk:
+  - h_w_id
+  - rowid
+  sort-by: []
+  original_table: tpcc.public.history
+  column_order:
+  - rowid
+  - h_c_id
+  - h_c_d_id
+  - h_c_w_id
+  - h_d_id
+  - h_w_id
+  - h_date
+  - h_amount
+  - h_data
+  table_number: 3
+item:
+  count: 1000
+  columns:
+    i_data:
+      type: string
+      args:
+        max: 50
+        min: 1
+        null_pct: 0.1
+        seed: 76
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    i_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 61
+        start: 1
+      isPrimaryKey: true
+      isUnique: true
+      hasForeignKey: false
+    i_im_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 99
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    i_name:
+      type: string
+      args:
+        max: 24
+        min: 1
+        null_pct: 0.1
+        seed: 38
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    i_price:
+      type: float
+      args:
+        max: 99.99
+        min: -99.99
+        null_pct: 0.1
+        round: 2
+        seed: 43
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+  pk:
+  - i_id
+  sort-by: []
+  original_table: tpcc.public.item
+  column_order:
+  - i_id
+  - i_im_id
+  - i_name
+  - i_price
+  - i_data
+  table_number: 6
+new_order:
+  count: 1000
+  columns:
+    no_d_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 31
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__order.o_d_id
+      fk_mode: block
+      fanout: 1
+      composite_id: 818481382
+    no_o_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 51
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__order.o_id
+      fk_mode: block
+      fanout: 1
+      composite_id: 818481382
+    no_w_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 93
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__order.o_w_id
+      fk_mode: block
+      fanout: 1
+      composite_id: 818481382
+  pk:
+  - no_w_id
+  - no_d_id
+  - no_o_id
+  sort-by: []
+  original_table: tpcc.public.new_order
+  column_order:
+  - no_o_id
+  - no_d_id
+  - no_w_id
+  table_number: 5
+order:
+  count: 10000
+  columns:
+    o_all_local:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 61
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    o_c_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 15
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__customer.c_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 687916539
+    o_carrier_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 69
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    o_d_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 23
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__customer.c_d_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 687916539
+    o_entry_d:
+      type: timestamp
+      args:
+        end: "2025-01-01"
+        format: '%Y-%m-%d %H:%M:%S.%f'
+        null_pct: 0.1
+        seed: 65
+        start: "2000-01-01"
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    o_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 9
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: false
+    o_ol_cnt:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 58
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    o_w_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 91
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__customer.c_w_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 687916539
+  pk:
+  - o_w_id
+  - o_d_id
+  - o_id
+  sort-by: []
+  unique:
+  - - o_w_id
+    - o_d_id
+    - o_c_id
+    - o_id
+  original_table: tpcc.public."order"
+  column_order:
+  - o_id
+  - o_d_id
+  - o_w_id
+  - o_c_id
+  - o_entry_d
+  - o_carrier_id
+  - o_ol_cnt
+  - o_all_local
+  table_number: 4
+order_line:
+  count: 10000
+  columns:
+    ol_amount:
+      type: float
+      args:
+        max: 99.99
+        min: -99.99
+        null_pct: 0.1
+        round: 2
+        seed: 45
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    ol_d_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 93
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__order.o_d_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 16577244
+    ol_delivery_d:
+      type: timestamp
+      args:
+        end: "2025-01-01"
+        format: '%Y-%m-%d %H:%M:%S.%f'
+        null_pct: 0.1
+        seed: 94
+        start: "2000-01-01"
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    ol_dist_info:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 37
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    ol_i_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0
+        seed: 41
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__stock.s_i_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 999038304
+    ol_number:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 90
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: false
+    ol_o_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 19
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__order.o_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 16577244
+    ol_quantity:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 86
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    ol_supply_w_id:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 87
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__stock.s_w_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 999038304
+    ol_w_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 88
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__order.o_w_id
+      fk_mode: block
+      fanout: 10
+      composite_id: 16577244
+  pk:
+  - ol_w_id
+  - ol_d_id
+  - ol_o_id
+  - ol_number
+  sort-by: []
+  original_table: tpcc.public.order_line
+  column_order:
+  - ol_o_id
+  - ol_d_id
+  - ol_w_id
+  - ol_number
+  - ol_i_id
+  - ol_supply_w_id
+  - ol_delivery_d
+  - ol_quantity
+  - ol_amount
+  - ol_dist_info
+  table_number: 8
+stock:
+  count: 1000
+  columns:
+    s_data:
+      type: string
+      args:
+        max: 50
+        min: 1
+        null_pct: 0.1
+        seed: 12
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_01:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 12
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_02:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 79
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_03:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 55
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_04:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 62
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_05:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 1
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_06:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 61
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_07:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 53
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_08:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 24
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_09:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 55
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_dist_10:
+      type: string
+      args:
+        max: 24
+        min: 24
+        null_pct: 0.1
+        seed: 62
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_i_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 76
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__item.i_id
+      fk_mode: block
+      fanout: 1
+    s_order_cnt:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 70
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_quantity:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 26
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_remote_cnt:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 89
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    s_w_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 62
+        start: 1
+      isPrimaryKey: true
+      isUnique: false
+      hasForeignKey: true
+      fk: tpcc__public__warehouse.w_id
+      fk_mode: block
+      fanout: 1
+    s_ytd:
+      type: integer
+      args:
+        max: 2147483647
+        min: -2147483648
+        null_pct: 0.1
+        seed: 2
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+  pk:
+  - s_w_id
+  - s_i_id
+  sort-by: []
+  original_table: tpcc.public.stock
+  column_order:
+  - s_i_id
+  - s_w_id
+  - s_quantity
+  - s_dist_01
+  - s_dist_02
+  - s_dist_03
+  - s_dist_04
+  - s_dist_05
+  - s_dist_06
+  - s_dist_07
+  - s_dist_08
+  - s_dist_09
+  - s_dist_10
+  - s_ytd
+  - s_order_cnt
+  - s_remote_cnt
+  - s_data
+  table_number: 7
+warehouse:
+  count: 1000
+  columns:
+    w_city:
+      type: string
+      args:
+        max: 20
+        min: 1
+        null_pct: 0
+        seed: 89
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    w_id:
+      type: sequence
+      args:
+        null_pct: 0
+        seed: 64
+        start: 1
+      isPrimaryKey: true
+      isUnique: true
+      hasForeignKey: false
+    w_name:
+      type: string
+      args:
+        max: 10
+        min: 1
+        null_pct: 0
+        seed: 85
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    w_state:
+      type: string
+      args:
+        max: 2
+        min: 2
+        null_pct: 0
+        seed: 15
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    w_street_1:
+      type: string
+      args:
+        max: 20
+        min: 1
+        null_pct: 0
+        seed: 68
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    w_street_2:
+      type: string
+      args:
+        max: 20
+        min: 1
+        null_pct: 0
+        seed: 31
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    w_tax:
+      type: float
+      args:
+        max: 0.9999
+        min: -0.9999
+        null_pct: 0
+        round: 4
+        seed: 33
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    w_ytd:
+      type: float
+      args:
+        max: 9.999999999e+07
+        min: -9.999999999e+07
+        null_pct: 0
+        round: 2
+        seed: 41
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+    w_zip:
+      type: string
+      args:
+        max: 9
+        min: 9
+        null_pct: 0
+        seed: 61
+      isPrimaryKey: false
+      isUnique: false
+      hasForeignKey: false
+  pk:
+  - w_id
+  sort-by: []
+  original_table: tpcc.public.warehouse
+  column_order:
+  - w_id
+  - w_name
+  - w_street_1
+  - w_street_2
+  - w_city
+  - w_state
+  - w_zip
+  - w_tax
+  - w_ytd
+  table_number: 0
