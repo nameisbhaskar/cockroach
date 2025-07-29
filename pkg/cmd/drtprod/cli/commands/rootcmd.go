@@ -73,6 +73,8 @@ allowing easy creating, destruction, controls and configurations of clusters.
 Commands include:
   execute: executes the commands as per the YAML configuration. Refer to pkg/cmd/drtprod/configs/drt_test.yaml as an example
   *: any other command is passed to roachprod, potentially with flags added
+
+  When enabled, workflow pauses will send messages to Slack with buttons to continue, retry, or abort the workflow.
 `,
 		Version: "details:\n" + build.GetInfo().Long(),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
