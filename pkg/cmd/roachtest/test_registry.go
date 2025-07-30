@@ -32,8 +32,8 @@ type testRegistryImpl struct {
 var _ registry.Registry = (*testRegistryImpl)(nil)
 
 // makeTestRegistry constructs a testRegistryImpl and configures it with opts.
-func makeTestRegistry() testRegistryImpl {
-	return testRegistryImpl{
+func makeTestRegistry() *testRegistryImpl {
+	return &testRegistryImpl{
 		m:                make(map[string]*registry.TestSpec),
 		ops:              make(map[string]*registry.OperationSpec),
 		snapshotPrefixes: make(map[string]struct{}),

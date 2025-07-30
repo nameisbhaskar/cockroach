@@ -108,7 +108,7 @@ Examples:
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r := makeTestRegistry()
-			tests.RegisterTests(&r)
+			tests.RegisterTests(r)
 
 			filter, err := makeTestFilter(args)
 			if err != nil {
@@ -244,7 +244,7 @@ Example:
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r := makeTestRegistry()
-			operations.RegisterOperations(&r)
+			operations.RegisterOperations(r)
 
 			ops := r.AllOperations()
 			for _, op := range ops {
@@ -285,7 +285,7 @@ Example:
 }
 
 func testsToRun(
-	r testRegistryImpl,
+	r *testRegistryImpl,
 	filter *registry.TestFilter,
 	runSkipped bool,
 	selectProbability float64,
@@ -450,7 +450,7 @@ func testShouldBeSkipped(
 	return td != nil && !td.Selected
 }
 
-func opsToRun(r testRegistryImpl, filter string) ([]registry.OperationSpec, error) {
+func opsToRun(r *testRegistryImpl, filter string) ([]registry.OperationSpec, error) {
 	regex, err := regexp.Compile(filter)
 	if err != nil {
 		return nil, err

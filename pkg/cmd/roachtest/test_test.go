@@ -47,7 +47,7 @@ const OwnerUnitTest registry.Owner = `unowned`
 
 const defaultParallelism = 10
 
-func mkReg(t *testing.T) testRegistryImpl {
+func mkReg(t *testing.T) *testRegistryImpl {
 	t.Helper()
 	return makeTestRegistry()
 }
@@ -324,7 +324,7 @@ type runnerTest struct {
 	runner         *testRunner
 }
 
-func setupRunnerTest(t *testing.T, r testRegistryImpl, testFilters []string) *runnerTest {
+func setupRunnerTest(t *testing.T, r *testRegistryImpl, testFilters []string) *runnerTest {
 	ctx := context.Background()
 
 	tf, err := registry.NewTestFilter(testFilters)

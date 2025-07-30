@@ -56,7 +56,7 @@ func runTests(register func(registry.Registry), filter *registry.TestFilter) err
 
 	// actual registering of tests
 	// TODO: don't register if we can't run on the specified registry cloud
-	register(&r)
+	register(r)
 	cr := newClusterRegistry()
 	stopper := stop.NewStopper()
 	defer stopper.Stop(context.Background())
