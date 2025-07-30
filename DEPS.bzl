@@ -7766,8 +7766,8 @@ def go_deps():
         build_file_proto_mode = "disable_global",
         importpath = "github.com/sashabaranov/go-openai",
         # TODO: mirror this repo (to fix, run `./dev generate bazel --mirror`)
-        sum = "h1:nilzF2EKzaHyK4Rk2Dbu/aJEZbtIvskDIXvfS4yx+6M=",
-        version = "v1.20.2",
+        sum = "h1:zf5tM+GuxpyiyD9XZg8nCqu52eYFQg9OOew0gnIuDy4=",
+        version = "v1.41.1",
     )
     go_repository(
         name = "com_github_satori_go_uuid",
