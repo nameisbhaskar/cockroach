@@ -147,7 +147,7 @@ func generateWorkload(
 			}
 
 			// 5d) The sql query is processed to replace _ and __more__ with new placeholders which contain information about the column they refer to.
-			rewritten, err := replacePlaceholders(rawSQL, allSchemas)
+			rewritten, err := replacePlaceholders(rawSQL, allSchemas, dbName)
 			if err != nil {
 				if errClose := f.Close(); errClose != nil {
 					// Wrap the original placeholder-rewrite error, then attach the close error.
@@ -157,6 +157,11 @@ func generateWorkload(
 					)
 				}
 				return errors.Wrapf(err, "rewriting SQL %q", rawSQL)
+			}
+			if rewritten == "" {
+				// rewritten SQL will be empty if the query is for another database
+				// e.g., select * from system.user;
+				continue // If the rewritten SQL is empty, skip this row.
 			}
 
 			// 5e) Grouping into txnMap, tracking first-seen order.
@@ -184,7 +189,9 @@ func generateWorkload(
 
 // replacePlaceholders parses the given SQL and locates all the _, __more__ placeholders.
 // The placeholders are then matched to what column's data do they represent and are replaced with information about that column for data generation.
-func replacePlaceholders(rawSQL string, allSchemas map[string]*TableSchema) (string, error) {
+func replacePlaceholders(
+	rawSQL string, allSchemas map[string]*TableSchema, dbName string,
+) (string, error) {
 	stmts, err := parser.Parse(rawSQL)
 	if err != nil {
 		return "", err
@@ -194,12 +201,12 @@ func replacePlaceholders(rawSQL string, allSchemas map[string]*TableSchema) (str
 	for _, stmt := range stmts {
 		// INSERT…VALUES (<placeholders>) is rewritten.
 		if ins, ok := stmt.AST.(*tree.Insert); ok {
-			handleInsert(ins, allSchemas)
+			handleInsert(ins, allSchemas, dbName)
 		}
 		// UPDATE ... SET is rewritten.
 		if upd, ok := stmt.AST.(*tree.Update); ok {
 			// 1) Everything in the SET clause is rewritten.
-			handleUpdateSet(upd, allSchemas)
+			handleUpdateSet(upd, allSchemas, dbName)
 		}
 		// Handling limit _
 		if sel, ok := stmt.AST.(*tree.Select); ok {
@@ -207,7 +214,10 @@ func replacePlaceholders(rawSQL string, allSchemas map[string]*TableSchema) (str
 		}
 
 		// Setting up the rewriter with the required table name and schemas.
-		rewriter := buildPlaceholderRewriter(stmt, allSchemas)
+		rewriter := buildPlaceholderRewriter(stmt, allSchemas, dbName)
+		if rewriter == nil {
+			continue // If no tables are found, we cannot rewrite placeholders.
+		}
 		// Wiring in for the join (col = __) case
 		if sel, ok := stmt.AST.(*tree.Select); ok {
 			// The SelectClause is unboxed from the Select statement.
@@ -231,7 +241,7 @@ func replacePlaceholders(rawSQL string, allSchemas map[string]*TableSchema) (str
 		rewritten := fmtCtx.CloseAndGetString()
 		// Cleaning up crdb_internal.force_error() calls.
 		// This is most probably used for development purposes to throw particular errors.
-		// In our case, since we will never be executing those parts, we are replacing with constant values of error code and error message.
+		// In our case, since we will never be executing those parts, we are replacing it with constant values of error code and error message.
 		rewritten = forceErrorRe.ReplaceAllString(rewritten, fmt.Sprintf("crdb_internal.force_error(%s, %s)", forceErrorCode, forceErrorMessage))
 		out = append(out, rewritten)
 	}
@@ -241,46 +251,70 @@ func replacePlaceholders(rawSQL string, allSchemas map[string]*TableSchema) (str
 
 // extractTablesFromExpr recursively extracts table names from a table expression,
 // including those in nested JOINs.
-func extractTablesFromExpr(expr tree.TableExpr, tables *[]string, aliases map[string]string) {
+// It appends the table names to the provided slice and maps aliases to their corresponding table names.
+// Returns false if no table name is found in the expression. This is possible if the table belongs to a
+// different database.
+func extractTablesFromExpr(
+	expr tree.TableExpr, tables *[]string, aliases map[string]string, dbName string,
+) bool {
 	switch t := expr.(type) {
 	case *tree.TableName, *tree.AliasedTableExpr:
-		if name, alias := extractTableName(expr); name != "" {
+		if name, alias := extractTableName(expr, dbName); name != "" {
 			*tables = append(*tables, name)
 			aliases[alias] = name
+			return true
 		}
+		// skipped as the table name does not belong to the current dbName.
+		return false
 	case *tree.JoinTableExpr:
 		// Recursively extract tables from both sides of the join
-		extractTablesFromExpr(t.Left, tables, aliases)
-		extractTablesFromExpr(t.Right, tables, aliases)
+		return extractTablesFromExpr(t.Left, tables, aliases, dbName) &&
+			extractTablesFromExpr(t.Right, tables, aliases, dbName)
 	}
+	// skipped as the table name does not belong to the current dbName.
+	return false
 }
 
 // buildPlaceholderRewriter creates a placeholderRewriter for the given statement.
 // It extracts the table name from the statement and initializes the rewriter with the schema map.
 func buildPlaceholderRewriter(
-	stmt statements.Statement[tree.Statement], allSchemas map[string]*TableSchema,
+	stmt statements.Statement[tree.Statement], allSchemas map[string]*TableSchema, dbName string,
 ) *placeholderRewriter {
 	tables := make([]string, 0)
 	aliases := make(map[string]string)
 	switch s := stmt.AST.(type) {
 	case *tree.Insert:
 		// ins.Table is a TableName or AliasedTableExpr
-		table, alias := extractTableName(s.Table)
+		table, alias := extractTableName(s.Table, dbName)
+		if table == "" {
+			// skipped as the table name does not belong to the current dbName.
+			return nil
+		}
 		tables = append(tables, table)
 		aliases[alias] = table
 	case *tree.Update:
-		table, alias := extractTableName(s.Table)
+		table, alias := extractTableName(s.Table, dbName)
+		if table == "" {
+			// skipped as the table name does not belong to the current dbName.
+			return nil
+		}
 		tables = append(tables, table)
 		aliases[alias] = table
 	case *tree.Delete:
-		table, alias := extractTableName(s.Table)
+		table, alias := extractTableName(s.Table, dbName)
+		if table == "" {
+			// If the table is not specified, we cannot rewrite placeholders.
+			return nil
+		}
 		tables = append(tables, table)
 		aliases[alias] = table
 	case *tree.Select:
 		// Pulling from all FROM tables and joins (including nested joins)
 		if sc, ok := s.Select.(*tree.SelectClause); ok {
 			for _, tblExpr := range sc.From.Tables {
-				extractTablesFromExpr(tblExpr, &tables, aliases)
+				if !extractTablesFromExpr(tblExpr, &tables, aliases, dbName) {
+					return nil
+				}
 			}
 		}
 	}

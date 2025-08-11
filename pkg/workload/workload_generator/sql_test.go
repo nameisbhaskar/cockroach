@@ -96,7 +96,7 @@ func TestReplacePlaceholders_AllCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, err := replacePlaceholders(tt.input, schemas)
+			out, err := replacePlaceholders(tt.input, schemas, "cct_tpcc")
 			require.Nil(t, err, "replacePlaceholders(%q) error: %v", tt.input, err)
 
 			// Remove all metadata tags, leaving regular SQL
@@ -121,6 +121,13 @@ func TestReplacePlaceholders_AllCases(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Select Table names with different schema", func(t *testing.T) {
+		query := "SELECT id FROM db2.orders WHERE acc_no = _;"
+		out, err := replacePlaceholders(query, schemas, "cct_tpcc")
+		require.Nil(t, err, "replacePlaceholders(%q) error: %v", query, err)
+		require.Empty(t, out, "expected empty output for query with different schema: %q", query)
+	},
+	)
 }
 
 func TestIsWriteTransaction(t *testing.T) {

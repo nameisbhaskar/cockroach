@@ -52,26 +52,30 @@ var (
 // extractTableName returns the table name along with the table alias for a
 // simple TableExpr (either a bare *tree.TableName or an *tree.AliasedTableExpr).
 // The table alias is returned as an empty string if there is no alias.
-// If the expr is something else (JOIN, subquery, etc.) it returns "", "".
-func extractTableName(tbl tree.TableExpr) (string, string) {
+// If the table name in the expression does not belong to the database, the table name is returned as "".
+func extractTableName(tbl tree.TableExpr, dbName string) (string, string) {
 	switch t := tbl.(type) {
 	case *tree.TableName:
 		// table name can be with or without quotes - e.g. "order" or `customer`.
-		return removeSchemaPrefix(strings.Trim(t.String(), `"`)), ""
+		return removeSchemaPrefix(strings.Trim(t.String(), `"`), dbName), ""
 	case *tree.AliasedTableExpr:
 		if tn, ok := t.Expr.(*tree.TableName); ok {
-			return removeSchemaPrefix(strings.Trim(tn.String(), `"`)), t.As.Alias.String()
+			return removeSchemaPrefix(strings.Trim(tn.String(), `"`), dbName), t.As.Alias.String()
 		}
 	}
-	return "", "" // unknown or a subquery/join
+	return "", "" // unknown
 }
 
 // removeSchemaPrefix removes the schema prefix from a table name.
-func removeSchemaPrefix(tn string) string {
-	if idx := strings.LastIndex(tn, "."); idx >= 0 {
-		return tn[idx+1:]
+func removeSchemaPrefix(tn, dbName string) string {
+	tableDetails := strings.Split(tn, ".")
+	if len(tableDetails) > 1 {
+		// If the table name has a schema prefix, the dbName must match.
+		if tableDetails[0] != dbName {
+			return ""
+		}
 	}
-	return tn
+	return tableDetails[len(tableDetails)-1]
 }
 
 // VisitPre handles any expr type of nodes with _ or __more__ inside them
@@ -608,9 +612,12 @@ func handleSelectLimit(sel *tree.Select) {
 }
 
 // handleInsert focuses on INSERT … VALUES type of sqls.
-func handleInsert(ins *tree.Insert, allSchemas map[string]*TableSchema) {
+func handleInsert(ins *tree.Insert, allSchemas map[string]*TableSchema, dbName string) {
 	// 1) The table name is extracted.
-	tn, ta := extractTableName(ins.Table)
+	tn, ta := extractTableName(ins.Table, dbName)
+	if tn == "" {
+		return // skipped as the table name does not belong to the current dbName.
+	}
 
 	// 2) Only raw VALUES clauses are rewritten.
 	vals, ok := ins.Rows.Select.(*tree.ValuesClause)
@@ -684,8 +691,12 @@ func (v *placeholderRewriter) buildInsertPlaceholderRows(
 }
 
 // handleUpdateSet orchestrates rewriting the placeholders in the SET clause of an UPDATE statement.
-func handleUpdateSet(upd *tree.Update, allSchemas map[string]*TableSchema) {
-	tn, ta := extractTableName(upd.Table)
+func handleUpdateSet(upd *tree.Update, allSchemas map[string]*TableSchema, dbName string) {
+	tn, ta := extractTableName(upd.Table, dbName)
+	if tn == "" {
+		return // skipped as the table name does not belong to the current dbName.
+	}
+
 	v := newPlaceholderRewriter(allSchemas, tn, ta)
 	for _, setExpr := range upd.Exprs {
 		if !setExpr.Tuple {
