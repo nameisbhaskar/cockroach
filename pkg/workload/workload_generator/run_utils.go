@@ -91,16 +91,14 @@ func setNullType(placeholder Placeholder) interface{} {
 // getTableName checks if the name field of placeholder is a column in the TableName column in the allSchema map inside d.
 // If yes, then returns that table name. otherwise looks for a table with that column and returns that.
 func getTableName(p Placeholder, d *workloadGenerator) string {
-	for _, block := range d.workloadSchema[p.TableName] {
-		for colName := range block.Columns {
-			if colName == p.Name {
-				return p.TableName
-			}
+	block := d.workloadSchema[p.TableName]
+	for colName := range block.Columns {
+		if colName == p.Name {
+			return p.TableName
 		}
 	}
-	for tableName, blocks := range d.workloadSchema {
-		block := blocks[0]
-		for colName := range block.Columns {
+	for tableName, blk := range d.workloadSchema {
+		for colName := range blk.Columns {
 			if colName == p.Name {
 				return tableName
 			}
