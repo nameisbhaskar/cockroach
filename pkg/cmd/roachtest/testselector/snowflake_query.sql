@@ -14,7 +14,7 @@ with ts as (
     and lower(name) like ? -- name is based on the suite and cloud e.g. '%roachtest nightly - gce%'
   group by 1
 ), test_stats as (
-  -- for all the build IDs select do a inner join on all the tests
+  -- for all the build ID's select do an inner join on all the tests
   select test_name, -- distinct test names
          count(case when status='SUCCESS' then test_name end) as total_successful_runs, -- all successful runs
          -- count the number of failed tests. tests failed due to preempted VMs are ignored.
