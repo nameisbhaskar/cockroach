@@ -175,9 +175,26 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -s artifacts/findings.md ]; then
-            gh issue comment "$ISSUE_NUMBER" \
-              --repo ${{ github.repository }} \
-              --body-file artifacts/findings.md
+            # Check if findings mention infrastructure flake classification
+            # Only auto-post full findings for high-confidence infrastructure flakes
+            if grep -qi "infrastructure flake\|infra.flake\|x-infra-flake" artifacts/findings.md && \
+               grep -qi "confidence.*high\|high confidence" artifacts/findings.md; then
+              # High-confidence infrastructure flake: post full findings
+              gh issue comment "$ISSUE_NUMBER" \
+                --repo ${{ github.repository }} \
+                --body-file artifacts/findings.md
+            else
+              # Other cases: post summary with link to artifacts
+              gh issue comment "$ISSUE_NUMBER" \
+                --repo ${{ github.repository }} \
+                --body "**Investigation Complete**
+
+Investigation finished but findings do not meet criteria for automatic posting (requires high-confidence infrastructure flake classification).
+
+**View full findings:** Download the \`investigation-findings\` artifact from the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+The complete analysis is available for manual review before posting to the issue."
+            fi
           else
             gh issue comment "$ISSUE_NUMBER" \
               --repo ${{ github.repository }} \
