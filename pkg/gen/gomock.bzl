@@ -13,6 +13,7 @@ GOMOCK_SRCS = [
     "//pkg/cmd/tef/planners:mock_planner_manager_generated_test.go",
     "//pkg/cmd/tef/planners:mock_registry_generated_test.go",
     "//pkg/cmd/tef/planners:mock_shared_plan_service_generated_test.go",
+    "//pkg/cmd/tef/plans/demo:mock_planner_generated_test.go",
     "//pkg/kv/kvclient/kvcoord:mocks_generated_test.go",
     "//pkg/kv/kvclient/rangecache/rangecachemock:mocks_generated.go",
     "//pkg/kv/kvclient/rangefeed:mocks_generated_test.go",

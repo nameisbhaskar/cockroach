@@ -33,17 +33,17 @@ Each plan consists of:
 
 To create a new plan:
 
-1. Create a new package under `pkg/cmd/tef/plans/`
+1. Create a new package under `plans/`
 2. Implement the `Registry` interface
 3. Define your input data structure
 4. Create executor functions
 5. Build the task graph in `GeneratePlan()`
-6. Register your plan in `pkg/cmd/tef/plans/registry.go`
+6. Register your plan in `plans/registry.go`
 
 ### Minimal Example Structure
 
 ```
-pkg/cmd/tef/plans/
+plans/
 └── myplan/
     └── plan.go
 ```

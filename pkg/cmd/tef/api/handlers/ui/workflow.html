@@ -1,0 +1,2397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEF Workflow Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        #container {
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        #header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+        }
+
+        #header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        #header .info {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        #header .parent-link {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            color: white;
+            text-decoration: none;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        #header .parent-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .sidebar-info-box {
+            position: absolute;
+            left: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 12px;
+            z-index: 100;
+            max-width: 350px;
+            max-height: 300px;
+            display: none;
+        }
+
+        #workflow-input {
+            top: 20px;
+        }
+
+        #workflow-output {
+            top: 20px;
+        }
+
+        .sidebar-box-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .sidebar-box-content {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .input-box-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .sidebar-info-box .input-box {
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 3px;
+            border-left: 3px solid #667eea;
+        }
+
+        .sidebar-info-box .input-box-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-info-box .input-box-content {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #333;
+        }
+
+        .sidebar-info-box .output-content {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 3px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #333;
+        }
+
+        .tooltip .input-box {
+            background: rgba(255, 255, 255, 0.1);
+            border-left: 3px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .tooltip .input-box-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            opacity: 0.8;
+            margin-bottom: 4px;
+        }
+
+        .tooltip .input-box-content {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        #controls {
+            padding: 20px 30px;
+            background: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .control-group input,
+        .control-group select {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:active {
+            background: #4c5ec4;
+        }
+
+        #graph-container {
+            position: relative;
+            overflow: auto;
+            height: calc(100vh - 220px);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-left: 0;
+            transition: padding-left 0.3s ease;
+        }
+
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+
+        /* Node styles */
+        .node {
+            cursor: pointer;
+        }
+
+        .node-rect {
+            stroke-width: 2;
+        }
+
+        /* Clickable child plan tasks */
+        .node.clickable-child:hover .node-rect {
+            filter: brightness(1.2);
+            stroke-width: 3;
+        }
+
+        /* Rounded corners only for rectangles */
+        rect.node-rect {
+            rx: 6;
+            ry: 6;
+        }
+
+        /* Status-based colors */
+        .status-completed .node-rect {
+            fill: #4caf50;
+            stroke: #388e3c;
+        }
+
+        .status-inprogress .node-rect {
+            fill: #ffc107;
+            stroke: #ffa000;
+        }
+
+        .status-pending .node-rect {
+            fill: #212121;
+            stroke: #000000;
+        }
+
+        .status-failed .node-rect {
+            fill: #f44336;
+            stroke: #c62828;
+        }
+
+        .status-completed text,
+        .status-inprogress text,
+        .status-failed text {
+            fill: white;
+        }
+
+        .status-pending text {
+            fill: white;
+        }
+
+        /* Node text */
+        .node-label {
+            font-size: 14px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+
+        .node-type {
+            font-size: 11px;
+            opacity: 0.9;
+            pointer-events: none;
+        }
+
+        .node-executor {
+            font-size: 10px;
+            opacity: 0.8;
+            pointer-events: none;
+            font-style: italic;
+        }
+
+        /* Links */
+        .link {
+            fill: none;
+            stroke-width: 3;
+        }
+
+        /* Edge labels */
+        .edge-label {
+            font-size: 12px;
+            font-weight: 600;
+            fill: #333;
+            pointer-events: none;
+            background: white;
+        }
+
+        /* Success paths (next, then, fork, param) - uncompleted */
+        .link-success-uncompleted {
+            stroke: #000000;
+            opacity: 0.4;
+        }
+
+        /* Success paths - completed/executed */
+        .link-success-completed {
+            stroke: #4caf50;
+            opacity: 1;
+            stroke-width: 4;
+        }
+
+        /* Failure paths (fail, else on error) - uncompleted */
+        .link-failure-uncompleted {
+            stroke: #999999;
+            opacity: 0.4;
+            stroke-dasharray: 5,5;
+        }
+
+        /* Failure paths - completed/executed */
+        .link-failure-completed {
+            stroke: #f44336;
+            opacity: 1;
+            stroke-width: 4;
+            stroke-dasharray: 5,5;
+        }
+
+        /* Specific overrides for parameter links */
+        .link-param {
+            stroke-dasharray: 3,3;
+        }
+
+        /* Arrowheads */
+        .marker-success-uncompleted path {
+            fill: #000000;
+            opacity: 0.4;
+        }
+
+        .marker-success-completed path {
+            fill: #4caf50;
+            opacity: 1;
+        }
+
+        .marker-failure-uncompleted path {
+            fill: #999999;
+            opacity: 0.4;
+        }
+
+        .marker-failure-completed path {
+            fill: #f44336;
+            opacity: 1;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: auto;
+            z-index: 1000;
+            max-width: 400px;
+            max-height: 500px;
+            overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            line-height: 1.5;
+        }
+
+        .tooltip-header {
+            font-weight: 600;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .tooltip-row {
+            margin: 4px 0;
+        }
+
+        .tooltip-label {
+            opacity: 0.7;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .tooltip-value {
+            margin-top: 2px;
+            word-break: break-word;
+        }
+
+        .tooltip-code {
+            background: rgba(255,255,255,0.1);
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .tooltip-link {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 6px 12px;
+            background: rgba(102, 126, 234, 0.8);
+            border-radius: 4px;
+            color: white;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .tooltip-link:hover {
+            background: rgba(102, 126, 234, 1);
+        }
+
+        /* Legend */
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 12px;
+            z-index: 100;
+        }
+
+        #legend h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .legend-section {
+            margin-bottom: 12px;
+        }
+
+        .legend-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #555;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 16px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.2);
+        }
+
+        .legend-line {
+            width: 24px;
+            height: 2px;
+            border-radius: 1px;
+        }
+
+        .legend-line.dashed {
+            background: repeating-linear-gradient(
+                to right,
+                currentColor,
+                currentColor 3px,
+                transparent 3px,
+                transparent 6px
+            );
+        }
+
+        #error-message {
+            padding: 20px 30px;
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #c62828;
+            margin: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        #loading {
+            padding: 40px;
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Plans and Executions view */
+        #plans-view, #executions-view {
+            padding: 30px;
+            display: none;
+            background: #f5f5f5;
+            min-height: 400px;
+        }
+
+        .plan-search-container {
+            max-width: 600px;
+            margin: 20px auto;
+        }
+
+        .plan-search-input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: border-color 0.2s;
+        }
+
+        .plan-search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .plan-dropdown {
+            margin-top: 8px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .plan-dropdown.show {
+            display: block;
+        }
+
+        .plan-dropdown-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+        }
+
+        .plan-dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .plan-dropdown-item:hover {
+            background: #f5f5f5;
+        }
+
+        .plan-dropdown-item-header {
+            font-size: 15px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 6px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .plan-dropdown-item-instances {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .plan-dropdown-item-instances.has-instances {
+            color: #4caf50;
+            font-weight: 600;
+        }
+
+        .no-results {
+            padding: 20px;
+            text-align: center;
+            color: #999;
+            font-style: italic;
+        }
+
+        .executions-list {
+            margin-top: 20px;
+        }
+
+        .execution-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px 20px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .execution-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .execution-info {
+            flex: 1;
+        }
+
+        .execution-id {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .execution-meta {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .execution-status {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .execution-status.completed {
+            background: #4caf50;
+            color: white;
+        }
+
+        .execution-status.inprogress {
+            background: #ffc107;
+            color: white;
+        }
+
+        .execution-status.failed {
+            background: #f44336;
+            color: white;
+        }
+
+        .section-header {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .section-subheader {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="header">
+            <h1>TEF Workflow Visualization</h1>
+            <div class="info" id="workflow-info">Loading workflow...</div>
+        </div>
+
+        <div id="controls">
+            <button onclick="goBackToExecutions()" id="back-to-executions-btn" style="display: none;">← Back to Executions</button>
+            <button onclick="showPlansView()" id="back-to-plans-btn" style="display: none;">← All Plans</button>
+            <div class="control-group" style="display: none;" id="manual-controls">
+                <label for="planId">Plan ID:</label>
+                <input type="text" id="planId" placeholder="e.g., tef_plan_myplan_123">
+            </div>
+            <div class="control-group" style="display: none;" id="manual-execution-controls">
+                <label for="executionId">Execution ID:</label>
+                <input type="text" id="executionId" placeholder="e.g., workflow-abc123">
+            </div>
+            <button onclick="loadWorkflow()" style="display: none;" id="manual-load-btn">Load Workflow</button>
+            <button onclick="autoRefresh()" style="display: none;" id="auto-refresh-btn">Auto Refresh</button>
+            <div class="control-group" style="display: none;" id="refresh-interval-controls">
+                <label for="refreshInterval">Interval (s):</label>
+                <input type="number" id="refreshInterval" value="5" min="1" max="60" style="width: 70px;">
+            </div>
+        </div>
+
+        <div id="error-message"></div>
+        <div id="loading">
+            <div class="spinner"></div>
+            <div>Loading workflow data...</div>
+        </div>
+
+        <!-- Plans View -->
+        <div id="plans-view">
+            <div class="plan-search-container">
+                <input type="text" id="plan-search" class="plan-search-input" placeholder="Search plans...">
+                <div id="plan-dropdown" class="plan-dropdown"></div>
+            </div>
+        </div>
+
+        <!-- Executions View -->
+        <div id="executions-view">
+            <div class="section-header" id="executions-header">Plan Executions</div>
+            <div class="section-subheader" id="executions-subheader"></div>
+            <div class="executions-list" id="executions-list"></div>
+        </div>
+
+        <div id="graph-container">
+            <svg id="workflow-graph"></svg>
+            <div id="legend">
+                <h3>Legend</h3>
+                <div class="legend-section">
+                    <div class="legend-title">Status</div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4caf50; border-color: #388e3c;"></div>
+                        <span>Completed</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ffc107; border-color: #ffa000;"></div>
+                        <span>In Progress</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #212121; border-color: #000000;"></div>
+                        <span>Pending</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f44336; border-color: #c62828;"></div>
+                        <span>Failed</span>
+                    </div>
+                </div>
+                <div class="legend-section">
+                    <div class="legend-title">Execution Paths</div>
+                    <div class="legend-item">
+                        <div class="legend-line" style="background: #4caf50; height: 4px;"></div>
+                        <span>Executed Success</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line dashed" style="color: #f44336; height: 4px;"></div>
+                        <span>Executed Failure</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line" style="background: #000000; opacity: 0.4;"></div>
+                        <span>Pending Success</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line dashed" style="color: #999999; opacity: 0.4;"></div>
+                        <span>Pending Failure</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="workflow-input" class="sidebar-info-box">
+                <div class="sidebar-box-title">Workflow Input</div>
+                <div id="input-content" class="sidebar-box-content"></div>
+            </div>
+
+            <div id="workflow-output" class="sidebar-info-box">
+                <div class="sidebar-box-title">Workflow Output</div>
+                <div id="output-content" class="sidebar-box-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let refreshIntervalId = null;
+        let currentData = null;
+
+        // Parse URL parameters
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                planId: params.get('plan_id'),
+                executionId: params.get('execution_id')
+            };
+        }
+
+        // Update URL parameters without reloading the page
+        function updateUrlParams(planId, executionId) {
+            const params = new URLSearchParams();
+            if (planId) params.set('plan_id', planId);
+            if (executionId) params.set('execution_id', executionId);
+
+            const newUrl = params.toString()
+                ? `${window.location.pathname}?${params.toString()}`
+                : window.location.pathname;
+
+            window.history.replaceState({}, '', newUrl);
+        }
+
+        // Go back to executions view from workflow view
+        function goBackToExecutions() {
+            const planId = document.getElementById('planId').value.trim();
+            if (planId) {
+                showExecutionsView(planId);
+            } else {
+                showPlansView();
+            }
+        }
+
+        // Show plans view
+        function showPlansView() {
+            // Hide all views
+            document.getElementById('plans-view').style.display = 'none';
+            document.getElementById('executions-view').style.display = 'none';
+            document.getElementById('graph-container').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
+            // Hide back buttons (we're on the main page)
+            document.getElementById('back-to-plans-btn').style.display = 'none';
+            document.getElementById('back-to-executions-btn').style.display = 'none';
+
+            // Hide workflow-specific controls
+            document.getElementById('manual-controls').style.display = 'none';
+            document.getElementById('manual-execution-controls').style.display = 'none';
+            document.getElementById('manual-load-btn').style.display = 'none';
+            document.getElementById('auto-refresh-btn').style.display = 'none';
+            document.getElementById('refresh-interval-controls').style.display = 'none';
+
+            // Clear URL params
+            updateUrlParams('', '');
+
+            // Update header
+            document.getElementById('workflow-info').textContent = 'All Plans';
+
+            // Load plans
+            loadPlans();
+        }
+
+        // Show executions view for a plan
+        function showExecutionsView(planId) {
+            // Hide all views
+            document.getElementById('plans-view').style.display = 'none';
+            document.getElementById('executions-view').style.display = 'none';
+            document.getElementById('graph-container').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
+            // Show "All Plans" button, hide "Back to Executions" button
+            document.getElementById('back-to-plans-btn').style.display = 'block';
+            document.getElementById('back-to-executions-btn').style.display = 'none';
+
+            // Hide workflow-specific controls
+            document.getElementById('manual-controls').style.display = 'none';
+            document.getElementById('manual-execution-controls').style.display = 'none';
+            document.getElementById('manual-load-btn').style.display = 'none';
+            document.getElementById('auto-refresh-btn').style.display = 'none';
+            document.getElementById('refresh-interval-controls').style.display = 'none';
+
+            // Update URL
+            updateUrlParams(planId, '');
+
+            // Load executions
+            loadExecutions(planId);
+        }
+
+        // Show workflow view
+        function showWorkflowView(planId, executionId) {
+            // Hide other views
+            document.getElementById('plans-view').style.display = 'none';
+            document.getElementById('executions-view').style.display = 'none';
+            document.getElementById('graph-container').style.display = 'flex';
+
+            // Show both navigation buttons
+            document.getElementById('back-to-executions-btn').style.display = 'block';
+            document.getElementById('back-to-plans-btn').style.display = 'block';
+
+            // Show workflow controls (for manual input if needed)
+            document.getElementById('manual-controls').style.display = 'flex';
+            document.getElementById('manual-execution-controls').style.display = 'flex';
+            document.getElementById('manual-load-btn').style.display = 'block';
+            document.getElementById('auto-refresh-btn').style.display = 'block';
+            document.getElementById('refresh-interval-controls').style.display = 'flex';
+
+            // Set input values
+            document.getElementById('planId').value = planId;
+            document.getElementById('executionId').value = executionId;
+
+            // Update URL
+            updateUrlParams(planId, executionId);
+
+            // Load workflow
+            loadWorkflow();
+        }
+
+        // Load all plans
+        async function loadPlans() {
+            try {
+                const response = await fetch('/v1/plans');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('plans-view').style.display = 'block';
+
+                renderPlans(data.plans);
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                showError(`Failed to load plans: ${error.message}`);
+            }
+        }
+
+        // Store plans data for filtering
+        let allPlansData = [];
+
+        // Render plans dropdown
+        function renderPlans(plans) {
+            if (!plans || Object.keys(plans).length === 0) {
+                document.getElementById('plan-dropdown').innerHTML = '<div class="no-results">No plans available</div>';
+                return;
+            }
+
+            // Convert plans to array and sort alphabetically
+            allPlansData = Object.keys(plans).sort().map(planName => ({
+                name: planName,
+                info: plans[planName]
+            }));
+
+            // Set up search input listener
+            const searchInput = document.getElementById('plan-search');
+            const dropdown = document.getElementById('plan-dropdown');
+
+            // Show all plans initially
+            filterAndRenderPlans('');
+
+            // Add event listener for search
+            searchInput.oninput = (e) => {
+                filterAndRenderPlans(e.target.value);
+            };
+
+            // Show dropdown on focus
+            searchInput.onfocus = () => {
+                dropdown.classList.add('show');
+            };
+
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.plan-search-container')) {
+                    dropdown.classList.remove('show');
+                }
+            });
+        }
+
+        // Filter and render plans based on search term
+        function filterAndRenderPlans(searchTerm) {
+            const dropdown = document.getElementById('plan-dropdown');
+            const term = searchTerm.toLowerCase().trim();
+
+            // Filter plans
+            const filtered = allPlansData.filter(plan => {
+                const nameMatch = plan.name.toLowerCase().includes(term);
+                const descMatch = plan.info.plan_description?.toLowerCase().includes(term);
+                const idsMatch = plan.info.plan_ids?.some(id => id.toLowerCase().includes(term));
+                return nameMatch || descMatch || idsMatch;
+            });
+
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="no-results">No plans match your search</div>';
+                dropdown.classList.add('show');
+                return;
+            }
+
+            // Sort plans: those with active instances first
+            filtered.sort((a, b) => {
+                const aCount = a.info.plan_ids?.length || 0;
+                const bCount = b.info.plan_ids?.length || 0;
+
+                // Plans with instances come first
+                if (aCount > 0 && bCount === 0) return -1;
+                if (aCount === 0 && bCount > 0) return 1;
+
+                // Within each group, sort by instance count (descending), then alphabetically
+                if (aCount !== bCount) return bCount - aCount;
+                return a.name.localeCompare(b.name);
+            });
+
+            // Render filtered plans
+            dropdown.innerHTML = '';
+            filtered.forEach(plan => {
+                const item = document.createElement('div');
+                item.className = 'plan-dropdown-item';
+
+                const description = plan.info.plan_description || 'No description';
+                const instanceCount = plan.info.plan_ids?.length || 0;
+                const hasInstances = instanceCount > 0;
+
+                item.innerHTML = `
+                    <div class="plan-dropdown-item-header">${plan.name} <span style="font-weight: normal; color: #999;">[${description}]</span></div>
+                    <div class="plan-dropdown-item-instances ${hasInstances ? 'has-instances' : ''}">${instanceCount} active instance${instanceCount !== 1 ? 's' : ''}</div>
+                `;
+
+                // Click handler - go to first plan instance if available
+                item.onclick = () => {
+                    if (plan.info.plan_ids && plan.info.plan_ids.length > 0) {
+                        showExecutionsView(plan.info.plan_ids[0]);
+                    } else {
+                        alert('No active instances for this plan');
+                    }
+                };
+
+                dropdown.appendChild(item);
+            });
+
+            dropdown.classList.add('show');
+        }
+
+        // Load executions for a plan
+        async function loadExecutions(planId) {
+            try {
+                const response = await fetch(`/v1/plans/${encodeURIComponent(planId)}/executions`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('executions-view').style.display = 'block';
+
+                // Update header
+                document.getElementById('workflow-info').textContent = `Executions for ${data.plan_name}`;
+                document.getElementById('executions-header').textContent = `Executions for ${data.plan_name}`;
+                document.getElementById('executions-subheader').textContent = `Plan ID: ${data.plan_id}`;
+
+                renderExecutions(data.executions, planId);
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                showError(`Failed to load executions: ${error.message}`);
+            }
+        }
+
+        // Render executions list
+        function renderExecutions(executions, planId) {
+            const list = document.getElementById('executions-list');
+            list.innerHTML = '';
+
+            if (!executions || executions.length === 0) {
+                list.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No executions found for this plan</p>';
+                return;
+            }
+
+            executions.forEach(exec => {
+                const item = document.createElement('div');
+                item.className = 'execution-item';
+                item.onclick = () => showWorkflowView(planId, exec.workflow_id);
+
+                const statusClass = exec.status.toLowerCase().replace(/\s+/g, '');
+
+                item.innerHTML = `
+                    <div class="execution-info">
+                        <div class="execution-id">${exec.workflow_id}</div>
+                        <div class="execution-meta">
+                            Run ID: ${exec.run_id}
+                            ${exec.start_time ? `| Started: ${new Date(exec.start_time).toLocaleString()}` : ''}
+                            ${exec.end_time ? `| Ended: ${new Date(exec.end_time).toLocaleString()}` : ''}
+                        </div>
+                    </div>
+                    <div class="execution-status ${statusClass}">${exec.status}</div>
+                `;
+
+                list.appendChild(item);
+            });
+        }
+
+        // Initialize from URL params
+        function initializeFromUrlParams() {
+            const params = getUrlParams();
+
+            if (params.planId && params.executionId) {
+                // Show workflow view
+                showWorkflowView(params.planId, params.executionId);
+            } else if (params.planId) {
+                // Show executions view
+                showExecutionsView(params.planId);
+            } else {
+                // Show plans view
+                showPlansView();
+            }
+        }
+
+        // Try both DOMContentLoaded and load events for better compatibility
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeFromUrlParams);
+        } else {
+            // DOM is already ready
+            initializeFromUrlParams();
+        }
+
+        async function loadWorkflow() {
+            const planId = document.getElementById('planId').value.trim();
+            const executionId = document.getElementById('executionId').value.trim();
+
+            if (!planId || !executionId) {
+                showError('Please provide both Plan ID and Execution ID');
+                return;
+            }
+
+            hideError();
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('graph-container').querySelector('svg').innerHTML = '';
+
+            try {
+                const response = await fetch(`/v1/plans/${encodeURIComponent(planId)}/executions/${encodeURIComponent(executionId)}`);
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                currentData = data;
+
+                document.getElementById('loading').style.display = 'none';
+                updateWorkflowInfo(data);
+                renderWorkflow(data);
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                showError(`Failed to load workflow: ${error.message}`);
+            }
+        }
+
+        function updateWorkflowInfo(data) {
+            const info = document.getElementById('workflow-info');
+            const status = data.status || 'Unknown';
+            const workflowName = data.workflow?.name || 'Unknown';
+            const currentTasks = data.current_tasks && data.current_tasks.length > 0
+                ? data.current_tasks.join(', ')
+                : 'N/A';
+
+            let infoText = `Workflow: ${workflowName} | Status: ${status} | Current Tasks: ${currentTasks}`;
+
+            // Add parent workflow link if available (use UI URL)
+            if (data.parent_workflow_ui_url) {
+                infoText += ` | `;
+                info.innerHTML = infoText + `<a href="${data.parent_workflow_ui_url}" class="parent-link">↑ Parent Workflow</a>`;
+            } else {
+                info.textContent = infoText;
+            }
+
+            // Show workflow input if available
+            const inputDiv = document.getElementById('workflow-input');
+            const inputContent = document.getElementById('input-content');
+            if (data.workflow?.input !== undefined && data.workflow?.input !== null &&
+                Array.isArray(data.workflow.input) && data.workflow.input.length > 0) {
+                // Create separate boxes for each input
+                inputContent.innerHTML = '';
+                inputContent.className = 'input-box-container';
+
+                data.workflow.input.forEach((inputItem, index) => {
+                    const box = document.createElement('div');
+                    box.className = 'input-box';
+
+                    const label = document.createElement('div');
+                    label.className = 'input-box-label';
+                    label.textContent = `Input ${index + 1}`;
+
+                    const content = document.createElement('div');
+                    content.className = 'input-box-content';
+                    content.textContent = JSON.stringify(inputItem, null, 2);
+
+                    box.appendChild(label);
+                    box.appendChild(content);
+                    inputContent.appendChild(box);
+                });
+
+                inputDiv.style.display = 'block';
+            } else {
+                inputDiv.style.display = 'none';
+            }
+
+            // Show workflow output if workflow is complete and has output
+            const outputDiv = document.getElementById('workflow-output');
+            const outputContent = document.getElementById('output-content');
+            if (status === 'Completed' && data.workflow?.output !== undefined && data.workflow?.output !== null) {
+                // Create output content container
+                outputContent.innerHTML = '';
+                const outputBox = document.createElement('div');
+                outputBox.className = 'output-content';
+                outputBox.textContent = JSON.stringify(data.workflow.output, null, 2);
+                outputContent.appendChild(outputBox);
+                outputDiv.style.display = 'block';
+            } else {
+                outputDiv.style.display = 'none';
+            }
+
+            // Position output below input if input is visible (use setTimeout to ensure DOM is updated)
+            setTimeout(() => {
+                if (inputDiv.style.display === 'block') {
+                    // Position output below input with some spacing
+                    const inputHeight = inputDiv.offsetHeight;
+                    outputDiv.style.top = (20 + inputHeight + 15) + 'px';
+                } else {
+                    // If no input, output goes where input would have been
+                    outputDiv.style.top = '20px';
+                }
+
+                // Adjust graph container padding to make room for input/output boxes
+                const graphContainer = document.getElementById('graph-container');
+                let maxWidth = 0;
+
+                // Calculate the maximum width of visible sidebar boxes
+                if (inputDiv.style.display === 'block') {
+                    maxWidth = Math.max(maxWidth, inputDiv.offsetWidth);
+                }
+                if (outputDiv.style.display === 'block') {
+                    maxWidth = Math.max(maxWidth, outputDiv.offsetWidth);
+                }
+
+                // Add padding to shift graph right (width + left margin + some extra spacing)
+                if (maxWidth > 0) {
+                    graphContainer.style.paddingLeft = (maxWidth + 60) + 'px';
+                } else {
+                    graphContainer.style.paddingLeft = '0';
+                }
+            }, 0);
+
+            const refreshButton = document.getElementById('auto-refresh-btn');
+
+            // Stop auto-refresh if workflow is completed or failed
+            if ((status === 'Completed' || status === 'Failed') && refreshIntervalId) {
+                clearInterval(refreshIntervalId);
+                refreshIntervalId = null;
+                if (refreshButton) {
+                    refreshButton.textContent = 'Auto Refresh';
+                    refreshButton.style.background = '#667eea';
+                }
+            }
+
+            // Automatically enable auto-refresh if workflow is in progress and not already refreshing
+            if (status === 'InProgress' && !refreshIntervalId) {
+                const interval = parseInt(document.getElementById('refreshInterval').value) * 1000;
+                refreshIntervalId = setInterval(loadWorkflow, interval);
+                if (refreshButton) {
+                    refreshButton.textContent = 'Stop Refresh';
+                    refreshButton.style.background = '#f44336';
+                }
+            }
+        }
+
+        function autoRefresh() {
+            if (refreshIntervalId) {
+                clearInterval(refreshIntervalId);
+                refreshIntervalId = null;
+                event.target.textContent = 'Auto Refresh';
+                event.target.style.background = '#667eea';
+            } else {
+                const interval = parseInt(document.getElementById('refreshInterval').value) * 1000;
+                loadWorkflow(); // Load immediately
+                refreshIntervalId = setInterval(loadWorkflow, interval);
+                event.target.textContent = 'Stop Refresh';
+                event.target.style.background = '#f44336';
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error-message').style.display = 'none';
+        }
+
+        function renderWorkflow(data) {
+            if (!data.workflow || !data.workflow.tasks) {
+                showError('No workflow data available');
+                return;
+            }
+
+            const workflow = data.workflow;
+            const tasks = workflow.tasks;
+
+            // Build graph structure
+            const nodes = [];
+            const links = [];
+            const nodeMap = new Map();
+
+            // Create nodes
+            Object.entries(tasks).forEach(([name, task]) => {
+                const node = {
+                    id: name,
+                    ...task,
+                    status: task.status || 'pending'
+                };
+                nodes.push(node);
+                nodeMap.set(name, node);
+            });
+
+            // Helper function to find the end task of a branch
+            function findEndTask(startTaskName, visited = new Set()) {
+                if (visited.has(startTaskName)) return startTaskName;
+                visited.add(startTaskName);
+
+                const task = tasks[startTaskName];
+                if (!task) return startTaskName;
+
+                // End task is terminal
+                if (task.type === 'end task') return startTaskName;
+
+                // If task has fork, find end of fork branches
+                if (task.fork_tasks && task.fork_tasks.length > 0) {
+                    // Return the end of the last fork branch
+                    return findEndTask(task.fork_tasks[task.fork_tasks.length - 1], visited);
+                }
+
+                // Follow next link
+                if (task.next) return findEndTask(task.next, visited);
+
+                // Follow then link (for if tasks)
+                if (task.then) return findEndTask(task.then, visited);
+
+                // No continuation, this is the end
+                return startTaskName;
+            }
+
+            // Create links
+            Object.entries(tasks).forEach(([name, task]) => {
+                // For fork tasks, next/fail should come from the end of fork branches
+                if (task.type === 'fork task') {
+                    // Fork branch links
+                    if (task.fork_tasks) {
+                        task.fork_tasks.forEach(forkTask => {
+                            links.push({ source: name, target: forkTask, type: 'fork' });
+                        });
+
+                        // Find the end task of the fork branches
+                        const forkEndTask = findEndTask(task.fork_tasks[task.fork_tasks.length - 1]);
+
+                        // Next and fail links from fork end task
+                        if (task.next) {
+                            links.push({ source: forkEndTask, target: task.next, type: 'next' });
+                        }
+                        if (task.fail) {
+                            links.push({ source: forkEndTask, target: task.fail, type: 'fail' });
+                        }
+                    }
+                } else {
+                    // Next link
+                    if (task.next) {
+                        links.push({ source: name, target: task.next, type: 'next' });
+                    }
+
+                    // Fail link
+                    if (task.fail) {
+                        links.push({ source: name, target: task.fail, type: 'fail' });
+                    }
+
+                    // Then link (for if tasks)
+                    if (task.then) {
+                        links.push({ source: name, target: task.then, type: 'then' });
+                    }
+
+                    // Else link (for if tasks)
+                    if (task.else) {
+                        links.push({ source: name, target: task.else, type: 'else' });
+                    }
+                }
+
+                // Parameter dependencies
+                if (task.params) {
+                    task.params.forEach(param => {
+                        if (nodeMap.has(param)) {
+                            links.push({ source: param, target: name, type: 'param' });
+                        }
+                    });
+                }
+            });
+
+            // Render the graph
+            renderGraph(nodes, links, workflow);
+        }
+
+        function renderGraph(nodes, links, workflow) {
+            const container = document.getElementById('graph-container');
+            const svg = d3.select('#workflow-graph');
+            svg.selectAll('*').remove();
+
+            // Remove any existing tooltips to prevent stale tooltips from remaining visible
+            d3.selectAll('.tooltip').remove();
+
+            // Build node map
+            const nodeMap = new Map();
+            nodes.forEach(n => nodeMap.set(n.id, n));
+
+            // Calculate hierarchical layout
+            const layout = calculateHierarchicalLayout(nodes, links, workflow);
+            const width = Math.max(1600, layout.width + 200);
+            const height = Math.max(1000, layout.height + 200);
+
+            svg.attr('width', width)
+               .attr('height', height);
+
+            // Define arrow markers
+            const defs = svg.append('defs');
+
+            const markerTypes = [
+                { id: 'arrow-success-uncompleted', class: 'marker-success-uncompleted' },
+                { id: 'arrow-success-completed', class: 'marker-success-completed' },
+                { id: 'arrow-failure-uncompleted', class: 'marker-failure-uncompleted' },
+                { id: 'arrow-failure-completed', class: 'marker-failure-completed' }
+            ];
+
+            markerTypes.forEach(marker => {
+                defs.append('marker')
+                    .attr('id', marker.id)
+                    .attr('class', marker.class)
+                    .attr('viewBox', '0 -5 10 10')
+                    .attr('refX', 10)  // Position arrow at tip instead of deep inside
+                    .attr('refY', 0)
+                    .attr('markerWidth', 6)
+                    .attr('markerHeight', 6)
+                    .attr('orient', 'auto')
+                    .append('path')
+                    .attr('d', 'M0,-5L10,0L0,5');
+            });
+
+            // Mark end tasks as completed if workflow is complete
+            // This must happen BEFORE markExecutedPath so that links to end tasks are marked correctly
+            const workflowCompleted = currentData.status === 'Completed';
+            nodes.forEach(n => {
+                if (n.type === 'end task' && workflowCompleted) {
+                    n.status = 'Completed';
+                }
+            });
+
+            // Determine which links are on the execution path
+            const executedLinks = new Set();
+            markExecutedPath(nodes, links, nodeMap, executedLinks, workflow);
+
+            // Build a map of fork end tasks and their associated fork branches
+            const forkEndTaskMap = new Map(); // Maps fork end task ID -> fork task info
+
+            nodes.forEach(n => {
+                if (n.type === 'fork task' && n.fork_tasks && n.fork_tasks.length > 0) {
+                    // Find the fork end task - it's the task that all fork branches point to
+                    const forkEndTaskIds = new Set();
+                    const branchEndTasks = []; // Track the last task in each branch before the fork end
+
+                    n.fork_tasks.forEach(forkTaskId => {
+                        // Traverse the fork branch to find the end
+                        let currentTaskId = forkTaskId;
+                        let previousTaskId = null;
+                        const visited = new Set();
+
+                        while (currentTaskId && !visited.has(currentTaskId)) {
+                            visited.add(currentTaskId);
+                            const currentTask = nodeMap.get(currentTaskId);
+
+                            if (!currentTask) break;
+
+                            // If this task is an end task, it's the fork end
+                            if (currentTask.type === 'end task') {
+                                forkEndTaskIds.add(currentTaskId);
+                                // The previous task is the last task in this branch
+                                if (previousTaskId) {
+                                    branchEndTasks.push(previousTaskId);
+                                }
+                                break;
+                            }
+
+                            previousTaskId = currentTaskId;
+
+                            // Follow next link
+                            if (currentTask.next) {
+                                currentTaskId = currentTask.next;
+                            } else {
+                                // No next, this is the last task in the branch
+                                branchEndTasks.push(previousTaskId);
+                                break;
+                            }
+                        }
+                    });
+
+                    // Store fork end task information
+                    forkEndTaskIds.forEach(endTaskId => {
+                        forkEndTaskMap.set(endTaskId, {
+                            forkTask: n,
+                            branchEndTasks: branchEndTasks
+                        });
+                    });
+                }
+            });
+
+            // Update fork end task status based on all branches being complete
+            forkEndTaskMap.forEach((info, forkEndTaskId) => {
+                const forkEndTask = nodeMap.get(forkEndTaskId);
+                if (forkEndTask) {
+                    // Check if all branch end tasks are completed
+                    // branchEndTasks contains the tasks that point TO the fork end task
+                    const allBranchesCompleted = info.branchEndTasks.length > 0 && info.branchEndTasks.every(taskId => {
+                        const task = nodeMap.get(taskId);
+                        // The branch is complete if the last task before the fork end is completed
+                        return task && task.status === 'Completed';
+                    });
+
+                    // Check if any branch has failed
+                    const anyBranchFailed = info.branchEndTasks.some(taskId => {
+                        const task = nodeMap.get(taskId);
+                        return task && task.status === 'Failed';
+                    });
+
+                    // Update fork end task status
+                    if (anyBranchFailed) {
+                        forkEndTask.status = 'Failed';
+                    } else if (allBranchesCompleted) {
+                        forkEndTask.status = 'Completed';
+                    }
+                }
+            });
+
+            // Update fork task status based on fork end task
+            nodes.forEach(n => {
+                if (n.type === 'fork task' && n.fork_tasks && n.fork_tasks.length > 0) {
+                    // Find the fork end task
+                    const forkEndTaskIds = new Set();
+
+                    n.fork_tasks.forEach(forkTaskId => {
+                        let currentTaskId = forkTaskId;
+                        const visited = new Set();
+
+                        while (currentTaskId && !visited.has(currentTaskId)) {
+                            visited.add(currentTaskId);
+                            const currentTask = nodeMap.get(currentTaskId);
+
+                            if (!currentTask) break;
+
+                            if (currentTask.type === 'end task') {
+                                forkEndTaskIds.add(currentTaskId);
+                                break;
+                            }
+
+                            if (currentTask.next) {
+                                currentTaskId = currentTask.next;
+                            } else {
+                                break;
+                            }
+                        }
+                    });
+
+                    // Check if any fork child task has started (InProgress or Completed)
+                    const anyChildStarted = n.fork_tasks.some(forkTaskId => {
+                        const forkTask = nodeMap.get(forkTaskId);
+                        return forkTask && (forkTask.status === 'InProgress' || forkTask.status === 'Completed');
+                    });
+
+                    // Check the fork end task status
+                    let forkEndCompleted = false;
+                    let forkEndFailed = false;
+
+                    forkEndTaskIds.forEach(endTaskId => {
+                        const endTask = nodeMap.get(endTaskId);
+                        if (endTask) {
+                            if (endTask.status === 'Completed') {
+                                forkEndCompleted = true;
+                            } else if (endTask.status === 'Failed') {
+                                forkEndFailed = true;
+                            }
+                        }
+                    });
+
+                    // Update fork task status
+                    if (forkEndFailed) {
+                        n.status = 'Failed';
+                    } else if (forkEndCompleted) {
+                        n.status = 'Completed';
+                    } else if (anyChildStarted) {
+                        n.status = 'InProgress';
+                    }
+                    // Otherwise keep the existing status (likely Pending)
+                }
+            });
+
+            // Classify and enhance link data
+            links.forEach(link => {
+                // Handle both string IDs and object references
+                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+                const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+                const linkKey = `${sourceId}-${targetId}-${link.type}`;
+                const isExecuted = executedLinks.has(linkKey);
+                const isFailurePath = link.type === 'fail';
+
+                // Determine link classification
+                if (isExecuted) {
+                    link.classification = isFailurePath ? 'failure-completed' : 'success-completed';
+                } else {
+                    link.classification = isFailurePath ? 'failure-uncompleted' : 'success-uncompleted';
+                }
+
+                // Set link label
+                if (link.type === 'then') {
+                    link.label = 'true';
+                } else if (link.type === 'else') {
+                    link.label = 'false';
+                } else if (link.type === 'fork') {
+                    // Fork links can have numbered labels if needed
+                    link.label = '';
+                } else if (link.type === 'param') {
+                    link.label = '';
+                } else {
+                    link.label = '';
+                }
+            });
+
+            // Create links
+            const link = svg.append('g')
+                .selectAll('path')
+                .data(links)
+                .join('path')
+                .attr('class', d => `link link-${d.classification}`)
+                .attr('marker-end', d => `url(#arrow-${d.classification})`)
+                .style('cursor', 'pointer');
+
+            // Create nodes
+            const node = svg.append('g')
+                .selectAll('g')
+                .data(nodes)
+                .join('g')
+                .attr('class', d => {
+                    let classes = `node status-${d.status.toLowerCase()}`;
+                    if (d.type === 'child task' && d.child_plan_info?.child_workflow_ui_url) {
+                        classes += ' clickable-child';
+                    }
+                    return classes;
+                })
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+
+            // Add shapes based on task type
+            node.each(function(d) {
+                const g = d3.select(this);
+                const height = d.executor ? 90 : 75;
+                const width = 180;
+
+                switch(d.type) {
+                    case 'execution task':
+                        // Box (rectangle)
+                        g.append('rect')
+                            .attr('class', 'node-rect')
+                            .attr('width', width)
+                            .attr('height', height)
+                            .attr('x', -width/2)
+                            .attr('y', -height/2);
+                        break;
+
+                    case 'if task':
+                        // Diamond - larger to fit text at center
+                        const diamondWidth = width * 1.4;
+                        const diamondHeight = height * 1.4;
+                        g.append('path')
+                            .attr('class', 'node-rect')
+                            .attr('d', `M 0,${-diamondHeight/2} L ${diamondWidth/2},0 L 0,${diamondHeight/2} L ${-diamondWidth/2},0 Z`);
+                        break;
+
+                    case 'sleep task':
+                        // Hexagon - adjusted for text containment
+                        const hexWidth = width * 1.15;
+                        const hexHeight = height;
+                        const hexOffset = hexWidth * 0.15;
+                        g.append('path')
+                            .attr('class', 'node-rect')
+                            .attr('d', `M ${-hexWidth/2 + hexOffset},${-hexHeight/2} L ${hexWidth/2 - hexOffset},${-hexHeight/2} L ${hexWidth/2},0 L ${hexWidth/2 - hexOffset},${hexHeight/2} L ${-hexWidth/2 + hexOffset},${hexHeight/2} L ${-hexWidth/2},0 Z`);
+                        break;
+
+                    case 'fork task':
+                        // Parallelogram
+                        const skew = 20;
+                        g.append('path')
+                            .attr('class', 'node-rect')
+                            .attr('d', `M ${-width/2 + skew},${-height/2} L ${width/2 + skew},${-height/2} L ${width/2 - skew},${height/2} L ${-width/2 - skew},${height/2} Z`);
+                        break;
+
+                    case 'async task':
+                        // Octagon - larger to fit text
+                        const asyncOctWidth = width * 0.7;
+                        const asyncOctHeight = height * 0.7;
+                        const asyncOctOffsetW = asyncOctWidth * 0.4;
+                        const asyncOctOffsetH = asyncOctHeight * 0.4;
+                        g.append('path')
+                            .attr('class', 'node-rect')
+                            .attr('d', `M ${-asyncOctOffsetW},${-asyncOctHeight} L ${asyncOctOffsetW},${-asyncOctHeight} L ${asyncOctWidth},${-asyncOctOffsetH} L ${asyncOctWidth},${asyncOctOffsetH} L ${asyncOctOffsetW},${asyncOctHeight} L ${-asyncOctOffsetW},${asyncOctHeight} L ${-asyncOctWidth},${asyncOctOffsetH} L ${-asyncOctWidth},${-asyncOctOffsetH} Z`);
+                        break;
+
+                    case 'child task':
+                        // Double octagon - larger to fit text
+                        const octWidth = width * 0.7;
+                        const octHeight = height * 0.7;
+                        const octOffsetW = octWidth * 0.4;
+                        const octOffsetH = octHeight * 0.4;
+                        const octPath = `M ${-octOffsetW},${-octHeight} L ${octOffsetW},${-octHeight} L ${octWidth},${-octOffsetH} L ${octWidth},${octOffsetH} L ${octOffsetW},${octHeight} L ${-octOffsetW},${octHeight} L ${-octWidth},${octOffsetH} L ${-octWidth},${-octOffsetH} Z`;
+                        g.append('path')
+                            .attr('class', 'node-rect')
+                            .attr('d', octPath);
+                        g.append('path')
+                            .attr('class', 'node-rect')
+                            .attr('d', octPath)
+                            .attr('transform', 'scale(0.7)')
+                            .style('fill', 'none');
+                        break;
+
+                    case 'end task':
+                        // Double circle - larger radius
+                        const radius = Math.min(width, height) / 2.2;
+                        g.append('circle')
+                            .attr('class', 'node-rect')
+                            .attr('r', radius);
+                        g.append('circle')
+                            .attr('class', 'node-rect')
+                            .attr('r', radius - 6)
+                            .style('fill', 'none');
+                        break;
+
+                    default:
+                        // Ellipse
+                        g.append('ellipse')
+                            .attr('class', 'node-rect')
+                            .attr('rx', width/2)
+                            .attr('ry', height/2);
+                        break;
+                }
+            });
+
+            // Add task name
+            node.append('text')
+                .attr('class', 'node-label')
+                .attr('text-anchor', 'middle')
+                .attr('dy', -10)
+                .text(d => truncate(d.name, 20));
+
+            // Add task type
+            node.append('text')
+                .attr('class', 'node-type')
+                .attr('text-anchor', 'middle')
+                .attr('dy', 8)
+                .text(d => d.type);
+
+            // Add executor name if present
+            node.filter(d => d.executor)
+                .append('text')
+                .attr('class', 'node-executor')
+                .attr('text-anchor', 'middle')
+                .attr('dy', 24)
+                .text(d => truncate(d.executor, 25));
+
+            // Add tooltip
+            const tooltip = d3.select('body').append('div')
+                .attr('class', 'tooltip')
+                .style('opacity', 0);
+
+            let currentClickedNode = null;
+
+            function hideTooltip() {
+                tooltip.transition()
+                    .duration(200)
+                    .style('opacity', 0);
+
+                // Restore all links to original state
+                link.style('opacity', null)
+                    .style('stroke', null)
+                    .style('stroke-width', null)
+                    .style('filter', null);
+
+                // Remove endpoint indicators
+                svg.selectAll('.link-endpoints').remove();
+
+                // Remove node highlight
+                node.style('filter', null);
+
+                currentClickedNode = null;
+            }
+
+            // Add click handler to close tooltip when clicking outside
+            d3.select('body').on('click', function(event) {
+                // Check if click is outside tooltip and nodes
+                const clickedElement = event.target;
+                const isTooltipClick = tooltip.node().contains(clickedElement);
+                const isNodeClick = clickedElement.closest('.node') !== null;
+                const isLinkClick = clickedElement.closest('.link') !== null;
+
+                if (!isTooltipClick && !isNodeClick && !isLinkClick) {
+                    hideTooltip();
+                }
+            });
+
+            node.on('click', function(event, d) {
+                // Stop propagation to prevent body click handler from firing
+                event.stopPropagation();
+
+                // If clicking the same node, hide tooltip
+                if (currentClickedNode === d.id) {
+                    hideTooltip();
+                    return;
+                }
+
+                currentClickedNode = d.id;
+
+                // Bring node to front by moving it to the end of its parent
+                this.parentNode.appendChild(this);
+
+                // Show tooltip
+                tooltip.transition()
+                    .duration(200)
+                    .style('opacity', 1);
+
+                let html = `<div class="tooltip-header">${d.name}</div>`;
+                html += `<div class="tooltip-row"><div class="tooltip-label">Type</div><div class="tooltip-value">${d.type}</div></div>`;
+                html += `<div class="tooltip-row"><div class="tooltip-label">Status</div><div class="tooltip-value">${d.status}</div></div>`;
+
+                if (d.executor) {
+                    html += `<div class="tooltip-row"><div class="tooltip-label">Executor</div><div class="tooltip-value">${d.executor}</div></div>`;
+                }
+
+                // Show child workflow info for child tasks
+                if (d.type === 'child task' && d.child_plan_info) {
+                    if (d.child_plan_info.child_plan_name) {
+                        html += `<div class="tooltip-row"><div class="tooltip-label">Child Plan</div><div class="tooltip-value">${d.child_plan_info.child_plan_name}</div></div>`;
+                    }
+                    if (d.child_plan_info.child_plan_variant) {
+                        html += `<div class="tooltip-row"><div class="tooltip-label">Child Plan Variant</div><div class="tooltip-value">${d.child_plan_info.child_plan_variant}</div></div>`;
+                    }
+                    if (d.child_plan_info.child_workflow_ui_url) {
+                        html += `<div class="tooltip-row"><div class="tooltip-label">Child Workflow</div><div class="tooltip-value"><a href="${d.child_plan_info.child_workflow_ui_url}" class="tooltip-link" onclick="event.stopPropagation();">→ View Child Workflow</a></div></div>`;
+                    }
+                }
+
+                if (d.input !== undefined && d.input !== null) {
+                    // Input is an array, display each item in separate boxes
+                    if (Array.isArray(d.input) && d.input.length > 0) {
+                        html += `<div class="tooltip-row"><div class="tooltip-label">Input${d.input.length > 1 ? 's' : ''}</div>`;
+                        html += `<div class="input-box-container">`;
+                        d.input.forEach((inputItem, index) => {
+                            html += `<div class="input-box">`;
+                            html += `<div class="input-box-label">Input ${index + 1}</div>`;
+                            html += `<div class="input-box-content">${JSON.stringify(inputItem, null, 2)}</div>`;
+                            html += `</div>`;
+                        });
+                        html += `</div></div>`;
+                    }
+                }
+
+                if (d.output !== undefined && d.output !== null) {
+                    html += `<div class="tooltip-row"><div class="tooltip-label">Output</div><div class="tooltip-code">${JSON.stringify(d.output, null, 2)}</div></div>`;
+                }
+
+                if (d.error) {
+                    html += `<div class="tooltip-row"><div class="tooltip-label">Error</div><div class="tooltip-value" style="color: #ff5252;">${d.error}</div></div>`;
+                }
+
+                if (d.start_time) {
+                    html += `<div class="tooltip-row"><div class="tooltip-label">Start Time</div><div class="tooltip-value">${new Date(d.start_time).toLocaleString()}</div></div>`;
+                }
+
+                if (d.end_time) {
+                    html += `<div class="tooltip-row"><div class="tooltip-label">End Time</div><div class="tooltip-value">${new Date(d.end_time).toLocaleString()}</div></div>`;
+                }
+
+                tooltip.html(html)
+                    .style('left', (event.pageX + 15) + 'px')
+                    .style('top', (event.pageY - 15) + 'px');
+
+                // Highlight connected links and show start/end points
+                const connectedLinks = links.filter(l => {
+                    const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+                    const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+                    return sourceId === d.id || targetId === d.id;
+                });
+
+                // Dim all links first
+                link.style('opacity', 0.2);
+
+                // Highlight connected links
+                connectedLinks.forEach(l => {
+                    link.filter(linkData => {
+                        const lSourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+                        const lTargetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+                        const linkDataSourceId = typeof l.source === 'object' ? l.source.id : l.source;
+                        const linkDataTargetId = typeof l.target === 'object' ? l.target.id : l.target;
+                        return lSourceId === linkDataSourceId && lTargetId === linkDataTargetId && linkData.type === l.type;
+                    })
+                    .each(function(linkData) {
+                        // Get the stroke color from the classification
+                        let strokeColor;
+                        if (linkData.classification === 'success-completed') {
+                            strokeColor = '#4caf50';
+                        } else if (linkData.classification === 'failure-completed') {
+                            strokeColor = '#f44336';
+                        } else if (linkData.classification === 'failure-uncompleted') {
+                            strokeColor = '#999999';
+                        } else {
+                            strokeColor = '#000000';
+                        }
+
+                        d3.select(this)
+                            .style('opacity', 1)
+                            .style('stroke', strokeColor)
+                            .style('stroke-width', 5)
+                            .style('filter', 'drop-shadow(0 0 4px rgba(0,0,0,0.5))');
+                    });
+                });
+
+                // Add endpoint indicators
+                const endpointGroup = svg.append('g').attr('class', 'link-endpoints');
+
+                connectedLinks.forEach(l => {
+                    const sourceNode = nodeMap.get(typeof l.source === 'object' ? l.source.id : l.source);
+                    const targetNode = nodeMap.get(typeof l.target === 'object' ? l.target.id : l.target);
+
+                    if (sourceNode && targetNode && l.midX !== undefined && l.midY !== undefined) {
+                        // Get the start and end points from the link path
+                        const linkElement = link.filter(linkData => {
+                            const lSourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+                            const lTargetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+                            const linkDataSourceId = typeof l.source === 'object' ? l.source.id : l.source;
+                            const linkDataTargetId = typeof l.target === 'object' ? l.target.id : l.target;
+                            return lSourceId === linkDataSourceId && lTargetId === linkDataTargetId && linkData.type === l.type;
+                        });
+
+                        const pathNode = linkElement.node();
+                        if (pathNode) {
+                            const pathLength = pathNode.getTotalLength();
+                            const startPoint = pathNode.getPointAtLength(0);
+                            const endPoint = pathNode.getPointAtLength(pathLength);
+
+                            // Add start point indicator (small circle)
+                            endpointGroup.append('circle')
+                                .attr('cx', startPoint.x)
+                                .attr('cy', startPoint.y)
+                                .attr('r', 5)
+                                .attr('fill', '#2196F3')
+                                .attr('stroke', 'white')
+                                .attr('stroke-width', 2);
+
+                            // Add end point indicator (small circle)
+                            endpointGroup.append('circle')
+                                .attr('cx', endPoint.x)
+                                .attr('cy', endPoint.y)
+                                .attr('r', 5)
+                                .attr('fill', '#FF9800')
+                                .attr('stroke', 'white')
+                                .attr('stroke-width', 2);
+
+                            // Add labels
+                            endpointGroup.append('text')
+                                .attr('x', startPoint.x)
+                                .attr('y', startPoint.y - 10)
+                                .attr('text-anchor', 'middle')
+                                .attr('fill', '#2196F3')
+                                .attr('font-size', '10px')
+                                .attr('font-weight', 'bold')
+                                .text('START');
+
+                            endpointGroup.append('text')
+                                .attr('x', endPoint.x)
+                                .attr('y', endPoint.y - 10)
+                                .attr('text-anchor', 'middle')
+                                .attr('fill', '#FF9800')
+                                .attr('font-size', '10px')
+                                .attr('font-weight', 'bold')
+                                .text('END');
+                        }
+                    }
+                });
+            });
+
+            // Draw links using computed positions with curved paths
+            link.attr('d', d => {
+                const source = nodeMap.get(d.source);
+                const target = nodeMap.get(d.target);
+
+                // Get node dimensions - accounting for executor field
+                const sourceHeight = source.executor ? 90 : 75;
+                const targetHeight = target.executor ? 90 : 75;
+                const nodeWidth = 180;
+                const edgePadding = 8; // Gap between link and node edge
+
+                // Calculate intersection point between a line and a node shape
+                const getShapeIntersection = (node, height, fromX, fromY, isSource) => {
+                    const nodeX = node.x;
+                    const nodeY = node.y;
+
+                    // Calculate angle from center of node to the other end
+                    const angle = Math.atan2(fromY - nodeY, fromX - nodeX);
+                    const cos = Math.cos(angle);
+                    const sin = Math.sin(angle);
+
+                    let intersectX, intersectY;
+
+                    switch(node.type) {
+                        case 'end task': {
+                            // Circle
+                            const radius = Math.min(nodeWidth, height) / 2.2 + edgePadding;
+                            intersectX = nodeX + radius * cos;
+                            intersectY = nodeY + radius * sin;
+                            break;
+                        }
+                        case 'if task': {
+                            // Diamond - use diamond boundary with 1.4x scale
+                            const halfWidth = (nodeWidth * 1.4) / 2;
+                            const halfHeight = (height * 1.4) / 2;
+
+                            // Find intersection with diamond edges
+                            const absX = Math.abs(cos * halfWidth);
+                            const absY = Math.abs(sin * halfHeight);
+                            const scale = Math.max(absX, absY) > 0 ? (halfWidth + halfHeight) / (absX + absY) : 1;
+
+                            intersectX = nodeX + cos * scale * halfWidth + (cos > 0 ? edgePadding : -edgePadding);
+                            intersectY = nodeY + sin * scale * halfHeight + (sin > 0 ? edgePadding : -edgePadding);
+                            break;
+                        }
+                        case 'sleep task': {
+                            // Hexagon - use wider rectangular boundary
+                            const halfWidth = (nodeWidth * 1.15) / 2;
+                            const halfHeight = height / 2;
+
+                            const absX = Math.abs(cos);
+                            const absY = Math.abs(sin);
+
+                            if (absX * halfHeight > absY * halfWidth) {
+                                const side = cos > 0 ? 1 : -1;
+                                intersectX = nodeX + side * (halfWidth + edgePadding);
+                                intersectY = nodeY + (intersectX - nodeX) * sin / cos;
+                            } else {
+                                const side = sin > 0 ? 1 : -1;
+                                intersectY = nodeY + side * (halfHeight + edgePadding);
+                                intersectX = nodeX + (intersectY - nodeY) * cos / sin;
+                            }
+                            break;
+                        }
+                        case 'async task':
+                        case 'child plan task': {
+                            // Octagon - approximate with rectangular boundary
+                            const halfWidth = (nodeWidth * 0.7);
+                            const halfHeight = (height * 0.7);
+
+                            const absX = Math.abs(cos);
+                            const absY = Math.abs(sin);
+
+                            if (absX * halfHeight > absY * halfWidth) {
+                                const side = cos > 0 ? 1 : -1;
+                                intersectX = nodeX + side * (halfWidth + edgePadding);
+                                intersectY = nodeY + (intersectX - nodeX) * sin / cos;
+                            } else {
+                                const side = sin > 0 ? 1 : -1;
+                                intersectY = nodeY + side * (halfHeight + edgePadding);
+                                intersectX = nodeX + (intersectY - nodeY) * cos / sin;
+                            }
+                            break;
+                        }
+                        default: {
+                            // Rectangle and other shapes - use rectangular boundary
+                            const halfWidth = nodeWidth / 2;
+                            const halfHeight = height / 2;
+
+                            // Calculate which edge the line intersects
+                            const absX = Math.abs(cos);
+                            const absY = Math.abs(sin);
+
+                            if (absX * halfHeight > absY * halfWidth) {
+                                // Intersects left or right edge
+                                const side = cos > 0 ? 1 : -1;
+                                intersectX = nodeX + side * (halfWidth + edgePadding);
+                                intersectY = nodeY + (intersectX - nodeX) * sin / cos;
+                            } else {
+                                // Intersects top or bottom edge
+                                const side = sin > 0 ? 1 : -1;
+                                intersectY = nodeY + side * (halfHeight + edgePadding);
+                                intersectX = nodeX + (intersectY - nodeY) * cos / sin;
+                            }
+                            break;
+                        }
+                    }
+
+                    return { x: intersectX, y: intersectY };
+                };
+
+                // Calculate start and end points with proper shape intersection
+                const sourcePoint = getShapeIntersection(source, sourceHeight, target.x, target.y, true);
+                const targetPoint = getShapeIntersection(target, targetHeight, source.x, source.y, false);
+
+                const x1 = sourcePoint.x;
+                const y1 = sourcePoint.y;
+                const x2 = targetPoint.x;
+                const y2 = targetPoint.y;
+
+                // Calculate control points for bezier curve
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+
+                // Vertical distance for curve control
+                const curveOffset = Math.abs(dy) * 0.5;
+
+                // Add horizontal offset for fail/else paths to avoid overlaps
+                let horizontalOffset = 0;
+                if (d.type === 'fail' || d.type === 'else') {
+                    horizontalOffset = 30; // Curve to the right
+                } else if (d.type === 'then') {
+                    horizontalOffset = -30; // Curve to the left
+                }
+
+                // Control points for smooth S-curve
+                const cx1 = x1 + horizontalOffset;
+                const cy1 = y1 + curveOffset;
+                const cx2 = x2 + horizontalOffset;
+                const cy2 = y2 - curveOffset;
+
+                // Store midpoint for label positioning
+                d.midX = (x1 + x2) / 2 + horizontalOffset;
+                d.midY = (y1 + y2) / 2;
+
+                // Use cubic bezier curve
+                return `M${x1},${y1} C${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`;
+            });
+
+            // Add edge labels for then/else (true/false)
+            const linkLabelGroup = svg.append('g').attr('class', 'edge-labels');
+
+            const labelData = links.filter(d => d.label && d.label !== '');
+
+            labelData.forEach(d => {
+                const g = linkLabelGroup.append('g');
+
+                // Add background rectangle for readability
+                const text = g.append('text')
+                    .attr('class', 'edge-label-temp')
+                    .attr('x', d.midX)
+                    .attr('y', d.midY)
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', -5)
+                    .text(d.label);
+
+                const bbox = text.node().getBBox();
+
+                g.insert('rect', 'text')
+                    .attr('x', bbox.x - 3)
+                    .attr('y', bbox.y - 2)
+                    .attr('width', bbox.width + 6)
+                    .attr('height', bbox.height + 4)
+                    .attr('fill', 'white')
+                    .attr('stroke', '#ddd')
+                    .attr('stroke-width', 1)
+                    .attr('rx', 3);
+
+                text.attr('class', 'edge-label');
+            });
+
+            // Add click effects for links
+            link.on('click', function(event, d) {
+                event.stopPropagation();
+
+                const linkElement = d3.select(this);
+
+                // Get the stroke color from classification
+                let strokeColor;
+                if (d.classification === 'success-completed') {
+                    strokeColor = '#4caf50';
+                } else if (d.classification === 'failure-completed') {
+                    strokeColor = '#f44336';
+                } else if (d.classification === 'failure-uncompleted') {
+                    strokeColor = '#999999';
+                } else {
+                    strokeColor = '#000000';
+                }
+
+                // Highlight this link
+                linkElement
+                    .style('stroke', strokeColor)
+                    .style('stroke-width', 6)
+                    .style('filter', 'drop-shadow(0 0 6px rgba(0,0,0,0.6))')
+                    .raise(); // Bring to front
+
+                // Highlight connected nodes
+                const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+                const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+
+                node.filter(n => n.id === sourceId || n.id === targetId)
+                    .style('filter', 'drop-shadow(0 0 8px rgba(102, 126, 234, 0.8))');
+
+                // Show tooltip with link information
+                const sourceNode = nodeMap.get(sourceId);
+                const targetNode = nodeMap.get(targetId);
+
+                let html = `<div class="tooltip-header">Connection</div>`;
+                html += `<div class="tooltip-row"><div class="tooltip-label">From</div><div class="tooltip-value">${sourceNode ? sourceNode.name : sourceId}</div></div>`;
+                html += `<div class="tooltip-row"><div class="tooltip-label">To</div><div class="tooltip-value">${targetNode ? targetNode.name : targetId}</div></div>`;
+                html += `<div class="tooltip-row"><div class="tooltip-label">Type</div><div class="tooltip-value">${d.type}</div></div>`;
+
+                if (d.label) {
+                    html += `<div class="tooltip-row"><div class="tooltip-label">Condition</div><div class="tooltip-value">${d.label}</div></div>`;
+                }
+
+                const isExecuted = d.classification.includes('completed');
+                html += `<div class="tooltip-row"><div class="tooltip-label">Status</div><div class="tooltip-value">${isExecuted ? 'Executed' : 'Pending'}</div></div>`;
+
+                tooltip.transition()
+                    .duration(200)
+                    .style('opacity', 1);
+
+                tooltip.html(html)
+                    .style('left', (event.pageX + 15) + 'px')
+                    .style('top', (event.pageY - 15) + 'px');
+            });
+        }
+
+        function calculateHierarchicalLayout(nodes, links, workflow) {
+            const nodeMap = new Map();
+            nodes.forEach(n => nodeMap.set(n.id, n));
+
+            // Build adjacency list for main flow
+            const children = new Map();
+            const parents = new Map();
+
+            links.forEach(link => {
+                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+                const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+
+                // Use next, fail, then, else for hierarchy (not fork or param)
+                // All these link types should enforce top-down flow
+                if (['next', 'fail', 'then', 'else'].includes(link.type)) {
+                    if (!children.has(sourceId)) children.set(sourceId, []);
+                    children.get(sourceId).push(targetId);
+                    if (!parents.has(targetId)) {
+                        parents.set(targetId, sourceId);
+                    }
+                }
+            });
+
+            // Find root node (first_task)
+            const rootId = workflow.first_task;
+
+            // Assign levels using BFS, taking maximum level for nodes with multiple parents
+            const levels = new Map();
+            const queue = [[rootId, 0]];
+            const inQueue = new Set([rootId]);
+
+            while (queue.length > 0) {
+                const [nodeId, level] = queue.shift();
+                inQueue.delete(nodeId);
+
+                // Update level to maximum (ensures top-down flow)
+                const currentLevel = levels.get(nodeId);
+                if (currentLevel === undefined || level > currentLevel) {
+                    levels.set(nodeId, level);
+                }
+
+                const actualLevel = levels.get(nodeId);
+
+                const nodeChildren = children.get(nodeId) || [];
+                nodeChildren.forEach(childId => {
+                    const childLevel = actualLevel + 1;
+                    if (!inQueue.has(childId)) {
+                        queue.push([childId, childLevel]);
+                        inQueue.add(childId);
+                    } else {
+                        // Re-queue with potentially higher level
+                        queue.push([childId, childLevel]);
+                    }
+                });
+
+                // Also handle fork tasks
+                const node = nodeMap.get(nodeId);
+                if (node && node.fork_tasks) {
+                    node.fork_tasks.forEach(forkId => {
+                        const forkLevel = actualLevel + 1;
+                        if (!inQueue.has(forkId)) {
+                            queue.push([forkId, forkLevel]);
+                            inQueue.add(forkId);
+                        } else {
+                            queue.push([forkId, forkLevel]);
+                        }
+                    });
+                }
+            }
+
+            // Assign levels to nodes not in the main tree
+            nodes.forEach(node => {
+                if (!levels.has(node.id)) {
+                    levels.set(node.id, 0);
+                }
+            });
+
+            // Group nodes by level
+            const nodesByLevel = new Map();
+            let maxLevel = 0;
+            nodes.forEach(node => {
+                const level = levels.get(node.id) || 0;
+                if (!nodesByLevel.has(level)) nodesByLevel.set(level, []);
+                nodesByLevel.get(level).push(node);
+                maxLevel = Math.max(maxLevel, level);
+            });
+
+            // Layout parameters
+            const nodeWidth = 180;
+            const nodeHeight = 90;
+            const horizontalSpacing = 280;
+            const verticalSpacing = 170;
+            const marginLeft = 120;
+            const marginTop = 120;
+
+            // First pass: calculate maximum width needed
+            let maxWidth = 0;
+            for (let level = 0; level <= maxLevel; level++) {
+                const levelNodes = nodesByLevel.get(level) || [];
+                const levelWidth = levelNodes.length * horizontalSpacing;
+                maxWidth = Math.max(maxWidth, levelWidth);
+            }
+
+            // Second pass: position nodes centered at each level
+            for (let level = 0; level <= maxLevel; level++) {
+                const levelNodes = nodesByLevel.get(level) || [];
+                const levelWidth = levelNodes.length * horizontalSpacing;
+                const startX = marginLeft + (maxWidth - levelWidth) / 2;
+
+                levelNodes.forEach((node, index) => {
+                    node.x = startX + index * horizontalSpacing;
+                    node.y = marginTop + level * verticalSpacing;
+                });
+            }
+
+            return {
+                width: maxWidth + marginLeft * 2,
+                height: marginTop * 2 + maxLevel * verticalSpacing
+            };
+        }
+
+        function markExecutedPath(nodes, links, nodeMap, executedLinks, workflow) {
+            // Mark links between executed nodes as executed
+            links.forEach(link => {
+                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+                const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+
+                const sourceNode = nodeMap.get(sourceId);
+                const targetNode = nodeMap.get(targetId);
+
+                if (sourceNode && targetNode) {
+                    const linkKey = `${sourceId}-${targetId}-${link.type}`;
+
+                    // For failure paths (fail), only mark as executed if source actually failed
+                    if (link.type === 'fail') {
+                        if (sourceNode.status === 'Failed' &&
+                            (targetNode.status === 'Completed' || targetNode.status === 'InProgress' || targetNode.status === 'Failed')) {
+                            executedLinks.add(linkKey);
+                        }
+                    } else if (link.type === 'fork') {
+                        // For fork links, mark as executed if the target fork branch has started
+                        if (targetNode.status === 'Completed' || targetNode.status === 'InProgress') {
+                            executedLinks.add(linkKey);
+                        }
+                    } else {
+                        // For other success paths (next, then, else, param), mark as executed if source completed successfully
+                        let targetStarted = targetNode.status === 'Completed' || targetNode.status === 'InProgress';
+
+                        // Special case: if target is a fork task, check if any of its children have started
+                        if (!targetStarted && targetNode.type === 'fork task' && targetNode.fork_tasks) {
+                            targetStarted = targetNode.fork_tasks.some(forkTaskId => {
+                                const forkTask = nodeMap.get(forkTaskId);
+                                return forkTask && (forkTask.status === 'InProgress' || forkTask.status === 'Completed');
+                            });
+                        }
+
+                        if (sourceNode.status === 'Completed' && targetStarted) {
+                            executedLinks.add(linkKey);
+                        }
+                    }
+                }
+            });
+        }
+
+        function truncate(str, maxLength) {
+            if (!str) return '';
+            return str.length > maxLength ? str.substring(0, maxLength - 3) + '...' : str;
+        }
+    </script>
+</body>
+</html>

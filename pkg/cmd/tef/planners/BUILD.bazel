@@ -4,7 +4,9 @@ go_library(
     name = "planners",
     srcs = [
         "definitions.go",
+        "factory.go",
         "logger.go",
+        "manager_registry.go",
         "plan_registry.go",
         "planner.go",
         "status.go",
@@ -15,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_cockroachdb_errors//:errors",
+        "@com_github_google_uuid//:uuid",
         "@com_github_spf13_cobra//:cobra",
     ],
 )
@@ -22,6 +25,7 @@ go_library(
 go_test(
     name = "planners_test",
     srcs = [
+        "manager_registry_test.go",
         "plan_registry_test.go",
         "planner_test.go",
         "status_test.go",

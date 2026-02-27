@@ -1,0 +1,45 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test", "gomock")
+
+go_library(
+    name = "demo",
+    srcs = [
+        "plan.go",
+        "plan_setup.go",
+        "slack.go",
+    ],
+    importpath = "github.com/cockroachdb/cockroach/pkg/cmd/tef/plans/demo",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/cmd/tef/api/sdk",
+        "//pkg/cmd/tef/planners",
+        "@com_github_slack_go_slack//:slack",
+        "@com_github_slack_go_slack//socketmode",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+go_test(
+    name = "demo_test",
+    srcs = [
+        "plan_test.go",
+        ":mock_planner",  # keep
+    ],
+    embed = [":demo"],
+    deps = [
+        "//pkg/cmd/tef/planners",
+        "@com_github_golang_mock//gomock",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+gomock(
+    name = "mock_planner",
+    testonly = True,
+    out = "mock_planner_generated_test.go",
+    interfaces = ["Planner"],
+    library = "//pkg/cmd/tef/planners",
+    package = "demo",
+    self_package = "github.com/cockroachdb/cockroach/pkg/cmd/tef/plans/demo",
+    visibility = ["//pkg/gen:__pkg__"],
+)

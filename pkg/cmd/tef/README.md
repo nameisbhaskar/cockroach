@@ -1,180 +1,81 @@
 # Task Execution Framework (TEF)
 
-TEF is a workflow orchestration framework for building multi-step task execution systems. It provides core abstractions for defining workflows with sequential execution, parallel execution, conditional branching, failure handling, and automatic validation.
+TEF is a workflow orchestration framework for building multi-step task execution systems with support for sequential execution, parallel execution, conditional branching, failure handling, and automatic validation.
 
-## High Level Overview
+## Key Concepts
 
-Every TEF workflow follows this structure:
+- **Plan**: A workflow definition implementing the `Registry` interface. Plans describe complex multi-step processes like cluster provisioning, performance testing, or deployment automation.
+- **Task**: Individual workflow steps with different types (Execution, Fork, Condition, Callback, ChildPlan, End)
+- **Executor**: Functions that perform the actual work in each task
+- **Planner**: Interface for building and validating task graphs
+- **Task Graph**: The workflow structure showing how tasks connect and flow
 
-* A **Plan** defines the workflow structure - what tasks to execute and in what order
-* Tasks can execute sequentially, in parallel (via ForkTask), or conditionally (via ConditionTask)
-* Each task runs an **Executor** function that performs the actual work
-* The framework validates the workflow at plan creation time (cycle detection, convergence validation)
-* Execution is delegated to an orchestration engine (e.g., Temporal, Airflow)
+### Example Workflow
 
-TEF is framework-agnostic: the core Plan definitions have no dependency on any specific orchestration engine. Swapping execution engines only requires implementing the `PlannerManager` interface.
+```
+Start → Setup Cluster → Check Ready? ─┬─ Yes → Deploy App → End
+                                      └─ No  → Retry Setup → End
+```
 
-**Current Status**: Core framework is complete (interfaces, validation, task types). Orchestration engine integration, CLI commands, and plan implementations are pending.
+## Creating Plans
 
-## Terminology
-
-Before diving into examples, here are the key terms:
-
-* **Plan**: A workflow definition that implements the `Registry` interface. Plans describe what tasks to run and how they connect.
-* **Workflow**: An execution instance of a Plan. When you execute a plan with specific input, you create a workflow.
-* **Task**: An individual step in a workflow. TEF provides seven task types (ExecutionTask, ForkTask, ForkJoinTask, ConditionTask, CallbackTask, ChildWorkflowTask, EndTask).
-* **Executor**: A function that performs actual work. Executors are registered with the plan and invoked by tasks.
-* **Planner**: The interface for building task graphs. Plans use the Planner to create and wire tasks together.
-* **Worker**: A process that executes workflows. Workers run the orchestration engine and process plan executions.
-
-## Simple Example
-
-Here's a simple plan that demonstrates TEF's core features:
+Plans are defined in Go code by implementing the `Registry` interface. Here's a minimal example:
 
 ```go
-package demo
+package myplan
 
 import (
     "context"
-    "encoding/json"
-    "fmt"
-    "time"
-
     "github.com/cockroachdb/cockroach/pkg/cmd/tef/planners"
-    "github.com/spf13/cobra"
 )
 
-type DemoPlan struct{}
+type MyPlan struct{}
 
-// Input data for the plan
-type DemoInput struct {
-    Message string `json:"message"`
-    Count   int    `json:"count"`
-}
+func (p *MyPlan) GetPlanName() string { return "myplan" }
+func (p *MyPlan) GetPlanDescription() string { return "My custom plan" }
 
-// PrepareExecution sets up necessary resources for plan execution
-func (d *DemoPlan) PrepareExecution(ctx context.Context) error {
-    return nil
-}
-
-// GetPlanName returns the plan identifier
-func (d *DemoPlan) GetPlanName() string {
-    return "demo"
-}
-
-// GetPlanDescription returns a human-readable description
-func (d *DemoPlan) GetPlanDescription() string {
-    return "Demonstrates TEF's core features: sequential execution, conditional branching, parallel execution, and sleep tasks"
-}
-
-// GetPlanVersion returns the workflow version
-func (d *DemoPlan) GetPlanVersion() int {
-    return 1
-}
-
-// ParsePlanInput parses JSON input
-func (d *DemoPlan) ParsePlanInput(input string) (interface{}, error) {
-    var data DemoInput
-    if err := json.Unmarshal([]byte(input), &data); err != nil {
-        return nil, err
+func (p *MyPlan) GeneratePlan(ctx context.Context, planner planners.Planner) {
+    // Register executors
+    exec := &planners.Executor{
+        Name: "setup",
+        Func: setupCluster,
     }
-    return &data, nil
+    planner.RegisterExecutor(ctx, exec)
+
+    // Create task graph
+    task1 := planner.NewExecutionTask(ctx, "setup cluster")
+    task1.ExecutorFn = setupCluster
+
+    endTask := planner.NewEndTask(ctx, "end")
+    task1.Next = endTask
+
+    // Register the plan
+    planner.RegisterPlan(ctx, task1, nil)
 }
 
-// AddStartWorkerCmdFlags adds plan-specific flags to worker commands
-func (d *DemoPlan) AddStartWorkerCmdFlags(cmd *cobra.Command) {
-    // No custom flags for this demo plan
-}
-
-// GeneratePlan builds the workflow structure
-func (d *DemoPlan) GeneratePlan(ctx context.Context, p planners.Planner) {
-    // Register executor functions
-    p.RegisterExecutor(ctx, &planners.Executor{
-        Name:        "print message",
-        Description: "Prints a message",
-        Func:        printMessage,
-    })
-    p.RegisterExecutor(ctx, &planners.Executor{
-        Name:        "check count",
-        Description: "Checks if count is positive",
-        Func:        checkCount,
-    })
-    p.RegisterExecutor(ctx, &planners.Executor{
-        Name:        "process parallel",
-        Description: "Processes data in parallel branch",
-        Func:        processParallel,
-    })
-    p.RegisterExecutor(ctx, &planners.Executor{
-        Name:        "wait time",
-        Description: "Returns wait duration",
-        Func:        waitTime,
-    })
-
-    // 1. SEQUENTIAL EXECUTION: Print message
-    task1 := p.NewExecutionTask(ctx, "print message")
-    task1.ExecutorFn = printMessage
-
-    // 2. CONDITIONAL BRANCHING: Check if count is positive
-    conditionTask := p.NewConditionTask(ctx, "check count")
-    conditionTask.ExecutorFn = checkCount  // Returns (bool, error)
-
-    // 3. PARALLEL EXECUTION: Process two branches concurrently
-    forkTask := p.NewForkTask(ctx, "parallel processing")
-    forkJoin := p.NewForkJoinTask(ctx, "fork join")
-
-    branch1 := p.NewExecutionTask(ctx, "process branch 1")
-    branch1.ExecutorFn = processParallel
-    branch1.Next = forkJoin
-
-    branch2 := p.NewExecutionTask(ctx, "process branch 2")
-    branch2.ExecutorFn = processParallel
-    branch2.Next = forkJoin
-
-    forkTask.Tasks = []planners.Task{branch1, branch2}
-    forkTask.Join = forkJoin  // All branches must converge to this join point
-
-    // 4. END: Workflow termination
-    endTask := p.NewEndTask(ctx, "end")
-
-    // Wire tasks together with FAILURE HANDLING
-    task1.Next = conditionTask
-    task1.Fail = endTask  // On failure, end workflow
-
-    // Conditional paths
-    conditionTask.Then = forkTask  // If count > 0, run parallel tasks
-    conditionTask.Else = endTask  // If count <= 0, end
-
-    // After parallel work
-    forkTask.Next = endTask
-    forkTask.Fail = endTask
-
-    // Register the plan (first task, output task)
-    p.RegisterPlan(ctx, task1, task1)
-}
-
-// Executor functions
-func printMessage(ctx context.Context, input *DemoInput) (string, error) {
-    fmt.Printf("Message: %s\n", input.Message)
-    return "printed", nil
-}
-
-func checkCount(ctx context.Context, input *DemoInput) (bool, error) {
-    return input.Count > 0, nil
-}
-
-func processParallel(ctx context.Context, input *DemoInput) (string, error) {
-    // Parallel processing work
-    return "processed", nil
-}
-
-func waitTime(ctx context.Context, input *DemoInput) (time.Duration, error) {
-    return 5 * time.Second, nil
+func setupCluster(ctx context.Context, info *planners.PlanExecutionInfo, input interface{}) (interface{}, error) {
+    // Your implementation
+    return "cluster-ready", nil
 }
 ```
 
-## Visualizing Your Plan
+### Task Types
 
-TEF can generate visual representations of your workflow as DOT graphs and PNG images:
+TEF provides seven task types:
+
+1. **ExecutionTask** - Runs an executor function
+2. **ForkTask** - Parallel execution of multiple branches
+3. **ForkJoinTask** - Synchronization point for parallel branches
+4. **ConditionTask** - Conditional branching (if/else)
+5. **CallbackTask** - Async execution with external completion signal
+6. **ChildPlanTask** - Execute another plan as a sub-workflow
+7. **EndTask** - Workflow termination point
+
+For detailed plan development guide, examples, and best practices, see **[plans/README.md](plans/README.md)**.
+
+## Visualizing Workflows
+
+TEF can generate visual representations of your workflow:
 
 ```bash
 ./dev build tef
@@ -183,250 +84,290 @@ TEF can generate visual representations of your workflow as DOT graphs and PNG i
 
 This creates:
 - `demo.dot` - DOT format graph definition
-- `demo.png` - Visual diagram of the workflow
+- `demo.png` - Visual diagram showing task flow, parallel execution, and branches
 
-**Requirements:** Graphviz must be installed (`brew install graphviz` on macOS, `apt install graphviz` on Linux)
+**Requirements:** Graphviz must be installed (`brew install graphviz` on macOS)
 
-The visualization shows:
-- Task execution flow with arrows
-- Parallel execution with colored boxes
-- Conditional branches (Then/Else)
-- Failure paths (optional with `--with-failure-paths` flag)
-- Different shapes for different task types (boxes, diamonds, circles, etc.)
+The visualization helps verify:
+- All execution paths converge to a common EndTask
+- Fork branches properly converge to their join point
+- Conditional branches lead to expected tasks
+- No unexpected cycles exist
 
-Use this during development to verify your workflow structure and ensure all branches converge correctly.
+Use `--with-failure-paths` to include error handling paths in the visualization.
 
-## Breakdown of the Example
+## Framework Flexibility
 
-Let's walk through each part of the example:
+TEF is designed to be **framework-agnostic**. The core framework (`planners/`) defines interfaces and validation logic without depending on any specific orchestration backend. This allows you to:
 
-### Defining the Plan Structure
+- **Develop plans** using CockroachDB dependencies
+- **Execute plans** using different orchestration backends (Temporal, in-memory, Kubernetes Jobs, etc.)
+- **Switch backends** without changing plan code
+
+### Separation of Concerns
+
+```
+┌─────────────────────────────────────┐
+│ Plans (this repository)             │
+│   - Workflow definitions            │
+│   - Executor implementations        │
+│   - Use cockroach dependencies      │
+└─────────────────┬───────────────────┘
+                  │ imports framework
+                  ↓
+┌─────────────────────────────────────┐
+│ Framework (this repository)         │
+│   - Interfaces (Planner, Registry)  │
+│   - Validation logic                │
+│   - Task definitions                │
+│   - CLI & API implementation        │
+└─────────────────┬───────────────────┘
+                  │ imports
+                  ↓
+┌─────────────────────────────────────┐
+│ Backend (separate repository)       │
+│   - Orchestration implementation    │
+│   - Factory pattern                 │
+│   - Runtime execution               │
+└─────────────────────────────────────┘
+```
+
+## Factory Pattern and Backends
+
+TEF uses a **factory pattern** to inject orchestration backends at runtime:
 
 ```go
-type DemoPlan struct{}
-
-func (d *DemoPlan) GetPlanName() string {
-    return "demo"
+// Framework defines the interface
+type PlannerManagerFactory interface {
+    CreateManager(ctx context.Context, registry Registry) (PlannerManager, error)
 }
+
+// Backends implement this interface
+type TemporalFactory struct { /* ... */ }
+type InMemoryFactory struct { /* ... */ }
 ```
 
-Every plan implements the `Registry` interface. At minimum, it needs a name and a way to parse input.
+This pattern enables:
+- Multiple backend implementations
+- Runtime backend selection
+- Testing with lightweight backends
+- Production deployment with robust orchestration
 
-### Plan Description and Versioning
+### Available Backends
 
-```go
-func (d *DemoPlan) GetPlanDescription() string {
-    return "Demonstrates TEF's core features: sequential execution, conditional branching, parallel execution, and sleep tasks"
-}
+**1. Temporal Backend (Production)**
 
-func (d *DemoPlan) GetPlanVersion() int {
-    return 1
-}
-```
+The primary production backend uses Temporal for distributed, durable workflow execution:
 
-**GetPlanDescription()** returns a human-readable description that helps users and operators understand the plan's purpose. This description is exposed through the TEF API and CLI for documentation and discovery.
+- Repository: `github.com/task-exec-framework`
+- Features: Distributed execution, durability, worker pools, retry policies
+- Use case: Production deployments, long-running workflows, distributed systems
 
-**GetPlanVersion()** returns the workflow version number, which is critical for managing backward compatibility:
-- Start with version 1 for new plans
-- Increment the version when making backward-incompatible changes to the workflow structure (adding/removing tasks, changing task order, modifying input/output schemas)
-- The orchestration engine uses this version to ensure running workflows continue executing with their original logic while new executions use the updated version
-- Non-breaking changes (bug fixes in executor logic, performance improvements) don't require version increments
+**2. In-Memory Backend (Development/Testing)**
 
-### Parsing Input
+A lightweight in-memory backend for development and testing:
 
-```go
-func (d *DemoPlan) ParsePlanInput(input string) (interface{}, error) {
-    var data DemoInput
-    if err := json.Unmarshal([]byte(input), &data); err != nil {
-        return nil, err
-    }
-    return &data, nil
-}
-```
+- Location: `pkg/cmd/tef/planners/inmemory/`
+- Features: Synchronous execution, no external dependencies, callback support
+- Use case: Testing, development, workflow visualization
 
-Plans receive input as JSON strings. The framework validates and parses this input before execution.
+See **[FACTORY_ARCHITECTURE.md](FACTORY_ARCHITECTURE.md)** for detailed architecture documentation.
 
-### Registering Executors
+## Temporal Backend (task-exec-framework)
 
-```go
-p.RegisterExecutor(ctx, &planners.Executor{
-    Name:        "print message",
-    Description: "Prints a message",
-    Func:        printMessage,
-})
-```
-
-All executor functions must be registered before they can be referenced in tasks. The framework validates that executors exist and have correct signatures.
-
-### Sequential Execution
-
-```go
-task1 := p.NewExecutionTask(ctx, "print message")
-task1.ExecutorFn = printMessage
-task1.Next = conditionTask  // Next task on success
-task1.Fail = endTask  // Failure handler
-```
-
-ExecutionTask runs an executor and proceeds to the Next task on success or Fail task on error.
-
-### Conditional Branching
-
-```go
-conditionTask := p.NewConditionTask(ctx, "check count")
-conditionTask.ExecutorFn = checkCount  // Must return (bool, error)
-conditionTask.Then = forkTask  // If true
-conditionTask.Else = sleepTask  // If false
-```
-
-ConditionTask evaluates a boolean executor and follows the Then or Else path.
-
-### Parallel Execution
-
-```go
-forkTask := p.NewForkTask(ctx, "parallel processing")
-forkJoin := p.NewForkJoinTask(ctx, "fork join")
-branch1 := p.NewExecutionTask(ctx, "process branch 1")
-branch1.Next = forkJoin
-branch2 := p.NewExecutionTask(ctx, "process branch 2")
-branch2.Next = forkJoin
-forkTask.Tasks = []planners.Task{branch1, branch2}
-forkTask.Join = forkJoin  // Synchronization point for all branches
-```
-
-ForkTask executes multiple branches concurrently. All branches must converge to the specified Join point (a ForkJoinTask) before execution continues to the fork's Next task. The Join ForkJoinTask acts as a synchronization barrier, not as termination of the entire execution path.
-
-### Ending the Workflow
-
-```go
-endTask := p.NewEndTask(ctx, "end")
-```
-
-All execution paths must end with an EndTask. EndTask serves two purposes:
-1. **Termination**: When used as the final task, it marks the end of the entire execution path
-2. **Synchronization**: When used as a ForkTask.Join, it acts as a synchronization barrier where parallel branches converge before execution continues to the fork's Next task
-
-The framework validates that all branches converge to appropriate EndTasks.
-
-## Additional Task Types
-
-The example above shows the most common task types. TEF also supports:
-
-* **CallbackTask**: For operations that start work and wait for external completion signals
-* **ChildWorkflowTask**: For executing other plans as sub-workflows
-
-See the [Plan Development Guide](plans/README.md) for complete documentation of all task types.
-
-## Getting Started
-
-### Prerequisites
-
-TEF requires an orchestration engine (e.g., Temporal) to execute workflows. The core framework provides the abstractions; you need to implement the `PlannerManager` interface for your chosen engine.
-
-**What's Implemented:**
-- Core interfaces and abstractions
-- BasePlanner with full validation (cycle detection, convergence checks)
-- All seven task types
-- Plan registry infrastructure
-
-**What's TODO:**
-- PlannerManager implementation for an orchestration engine
-- CLI command generation
-- Plan implementations
-- Worker runtime
-
-See [TODO.md](TODO.md) for the complete list of pending work.
-
-### Building TEF
+The Temporal backend is the primary production implementation:
 
 ```bash
-# From the cockroach repository root
-./dev build tef
+# Clone the backend repo
+git clone https://github.com/task-exec-framework
 
-# The binary will be available at: ./bin/tef
+# Build
+cd task-exec-framework
+go build -o bin/tef .
+
+# Run
+./bin/tef --help
 ```
 
-Note: The current binary has minimal functionality until the orchestration engine and CLI commands are implemented.
-
-### Creating Your First Plan
-
-1. Create a package under `pkg/cmd/tef/plans/myplan/`
-2. Implement the `planners.Registry` interface (see example above)
-3. Register your plan in `pkg/cmd/tef/plans/registry.go`
-4. Run validation: the framework will panic if your plan has issues
-
-See the [Plan Development Guide](plans/README.md) for detailed instructions.
-
-### Running Workflows (Pseudo Code)
-
-Once implemented, the workflow would be:
+### CLI Usage (Temporal Backend)
 
 ```bash
-# Terminal 1: Start a worker
-./bin/tef start-worker demo --plan-variant dev
+# Start a worker
+./tef start-worker myplan --temporal-address localhost:7233
 
-# Terminal 2: Execute the plan
-./bin/tef execute demo '{"message": "Hello", "count": 5}' dev
-# Returns: Workflow ID for tracking
+# Execute a plan
+./tef execute myplan '{"input":"data"}' dev
 
 # Check status
-./bin/tef status demo <workflow-id>
+./tef get-status tef_plan_myplan.dev <workflow-id>
+
+# List executions
+./tef list-executions tef_plan_myplan.dev
 ```
 
-## Architecture and Design
+The Temporal backend imports framework code from this repository and provides:
+- Distributed workflow execution
+- Persistent workflow state
+- Automatic retries and error handling
+- Worker pool management
+- Production-grade durability
 
-TEF follows key design principles:
+## Standalone Mode (tef-light)
 
-**Framework Independence**: Core abstractions have zero dependency on any orchestration engine. The entire execution layer can be swapped by implementing the `PlannerManager` interface.
+For development, testing, and visualization without external dependencies, use the standalone mode:
 
-**Comprehensive Validation**: Plans are validated at creation time:
-- Cycle detection using depth-first traversal
-- Convergence validation (all branches must end at the same EndTask)
-- Executor registration verification
-- Function signature validation
+```bash
+# Build tef-light binary
+./dev build tef-light
 
-**Type Safety**: Executor function signatures are validated using reflection. ConditionTask executors must return `(bool, error)`, etc.
+# Execute with in-memory backend (comma-separated plans)
+./bin/tef-light standalone demo \
+  --with-plans demo,cluster-setup \
+  --input '{"cluster":"test"}' \
+  --plan-variant dev \
+  --port 8081
 
-**Workflow Versioning**: Plans support versioning via `GetWorkflowVersion()`. Increment the version for backward-incompatible changes.
+# Execute with in-memory backend (regex pattern)
+./bin/tef-light standalone demo \
+  --with-plans-regex "pua.*" \
+  --input '{"cluster":"test"}' \
+  --plan-variant dev \
+  --port 8081
+```
 
-For detailed architecture documentation, see [architecture.md](architecture.md).
+This mode:
+- Runs workflows entirely in-memory within a single process
+- Executes tasks asynchronously in background goroutines
+- Provides HTTP API for status queries and resume operations
+- Requires no external dependencies (no Temporal, no database)
+- Ideal for testing, development, and workflow visualization
 
-## Additional Resources
+### Standalone Features
 
-* **[Plan Development Guide](plans/README.md)**: Comprehensive guide for creating plans with all task types and examples
-* **[Architecture Documentation](architecture.md)**: Detailed architecture, code flow, and extension guide
-* **[CLI Commands](CLI.md)**: Command-line interface reference
-* **[REST API](API.md)**: HTTP API documentation
-* **[TODO List](TODO.md)**: Pending implementation work
+- **Synchronous Execution**: Tasks execute in-process using goroutines
+- **HTTP API**: Query status and resume callback tasks via REST API
+- **Callback Support**: Callback tasks block until resumed via HTTP endpoint
+- **Child Workflows**: Executes child plans in the same process
+- **No Persistence**: State is lost on process restart
 
-## Key Files
+### Use Cases for Standalone Mode
 
-* `pkg/cmd/tef/planners/definitions.go` - Core interface definitions
-* `pkg/cmd/tef/planners/planner.go` - BasePlanner implementation and validation
-* `pkg/cmd/tef/planners/tasks.go` - All task type definitions
-* `pkg/cmd/tef/plans/registry.go` - Plan registration
+- **Development**: Quickly test plan changes without orchestration setup
+- **Visualization**: Generate workflow graphs and verify structure
+- **Testing**: Validate plan logic in CI/CD without external dependencies
+- **Demos**: Show workflow execution without infrastructure requirements
 
-## Quick Reference
+See **[planners/inmemory/README.md](planners/inmemory/README.md)** for detailed documentation.
 
-### Task Types
+## CLI Commands
 
-| Task Type | Purpose | Key Signature |
-|-----------|---------|---------------|
-| ExecutionTask | Run executor function | `func(ctx, input, ...params) (output, error)` |
-| ForkTask | Parallel execution | Multiple branches, all converge to Join (ForkJoinTask) |
-| ConditionTask | Conditional branching | `func(ctx, input, ...params) (bool, error)` |
-| CallbackTask | External async work | ExecutionFn + ResultProcessorFn |
-| ChildWorkflowTask | Execute child plan | `func(ctx, planInfo, input, ...params) (ChildTaskInfo, error)` |
-| ForkJoinTask | Fork synchronization | Synchronization point where fork branches converge |
-| EndTask | Termination | Marks end of execution path |
+TEF provides several CLI commands:
 
-### Validation Rules
+```bash
+# Visualize workflow structure
+./bin/tef gen-view <planname> [--with-failure-paths]
 
-- All tasks must have unique names
-- All executors must be registered before use
-- No cyclic dependencies allowed
-- All execution paths must converge to a common EndTask
-- ForkTask must specify a Join (ForkJoinTask) and all branches must converge to it
-- ConditionTask Then/Else paths must converge to the same EndTask
-- Tasks with Next/Fail paths must converge to the same EndTask
+# Standalone execution (in-memory backend)
+./bin/tef standalone <planname> --input '<json>' --plan-variant <variant>
 
-For complete validation rules and error messages, see the [Plan Development Guide](plans/README.md#validation-and-error-handling).
+# Temporal backend commands (from task-exec-framework repo)
+./tef execute <planname> '<json-input>' <variant>
+./tef start-worker <planname> --plan-variant <variant>
+./tef get-status <plan-id> <workflow-id>
+./tef list-executions <plan-id>
+```
+
+See **[CLI.md](CLI.md)** for complete command reference.
+
+## REST API
+
+The framework includes a REST API server for programmatic access:
+
+```bash
+# Start API server (from task-exec-framework binary)
+./tef serve --host localhost --port 8081
+
+# API endpoints
+POST   /v1/plans/{planID}/execute
+GET    /v1/plans/{planID}/executions
+GET    /v1/plans/{planID}/executions/{workflowID}/status
+POST   /v1/plans/{planID}/executions/{workflowID}/resume
+GET    /v1/plans
+```
+
+See **[API.md](API.md)** for full API documentation.
+
+## Development
+
+### Working on Plans
+
+Plans are implemented in this repository:
+
+```bash
+# In this repo (cockroach)
+cd pkg/cmd/tef/plans
+
+# Create new plan
+mkdir myplan
+vim myplan/plan.go
+
+# Register in plans/registry.go
+vim registry.go
+```
+
+Plans can use any cockroach dependencies and are automatically available to all backends.
+
+### Working on Framework
+
+Framework code is in `pkg/cmd/tef/planners/`:
+
+```bash
+# Make framework changes
+cd pkg/cmd/tef/planners
+vim definitions.go
+
+# Test changes
+./dev test pkg/cmd/tef/planners
+```
+
+Backend repos automatically pick up framework changes via `go.mod`.
+
+### Testing
+
+```bash
+# Test framework code
+./dev test pkg/cmd/tef/planners
+./dev test pkg/cmd/tef/cli
+
+# Test plans
+./dev test pkg/cmd/tef/plans/demo
+
+# Test in-memory backend
+./dev test pkg/cmd/tef/planners/inmemory
+```
+
+## Documentation
+
+- **[plans/README.md](plans/README.md)** - Comprehensive plan development guide
+- **[planners/inmemory/README.md](planners/inmemory/README.md)** - Standalone mode documentation
+- **[FACTORY_ARCHITECTURE.md](FACTORY_ARCHITECTURE.md)** - Architecture and factory pattern
+- **[API.md](API.md)** - REST API documentation
+- **[CLI.md](CLI.md)** - CLI command reference
+- **[QUICKSTART.md](QUICKSTART.md)** - Kubernetes deployment guide
+- **[architecture.md](architecture.md)** - Detailed design docs
+
+## Status
+
+✅ Framework-agnostic design
+✅ Factory pattern for backend injection
+✅ Multiple task types with automatic validation
+✅ CLI and API implementation
+✅ Demo and production plans
+✅ Temporal backend (production-ready)
+✅ In-memory backend (development/testing)
+✅ Manager registry for child workflows
+✅ Workflow visualization
+
+## License
+
+See LICENSE file in repository root.
