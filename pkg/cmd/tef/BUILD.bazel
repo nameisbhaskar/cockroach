@@ -5,11 +5,14 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/cockroachdb/cockroach/pkg/cmd/tef",
     visibility = ["//visibility:private"],
-    deps = ["//pkg/cmd/tef/cli"],
+    deps = [
+        "//pkg/cmd/tef/cli",
+        "//pkg/cmd/tef/planners/inmemory",
+    ],
 )
 
 go_binary(
-    name = "tef",
+    name = "tef-light",
     embed = [":tef_lib"],
     visibility = ["//visibility:public"],
 )

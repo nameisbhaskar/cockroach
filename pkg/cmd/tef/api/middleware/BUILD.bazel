@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "middleware",
+    srcs = ["tracing.go"],
+    importpath = "github.com/cockroachdb/cockroach/pkg/cmd/tef/api/middleware",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/cmd/tef/planners",
+        "@com_github_google_uuid//:uuid",
+    ],
+)
+
+go_test(
+    name = "middleware_test",
+    srcs = ["tracing_test.go"],
+    embed = [":middleware"],
+    deps = [
+        "//pkg/cmd/tef/planners",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

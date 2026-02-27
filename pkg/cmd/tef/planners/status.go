@@ -9,7 +9,13 @@
 // are used for monitoring and querying workflow state.
 package planners
 
-import "time"
+import (
+	"fmt"
+	"net/url"
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // ChildPlanInfo represents details about a specific child plan within a workflow system.
 // It includes the plan's name and variant uniquely identifying the child plan.
@@ -199,4 +205,58 @@ func SerializePlanStructure(basePlanner *BasePlanner) *WorkflowInfo {
 	}
 
 	return workflowInfo
+}
+
+// BuildChildWorkflowURLs constructs both API and UI URLs for a child workflow.
+// Returns (apiURL, uiURL) for navigating to the child workflow.
+func BuildChildWorkflowURLs(childPlanID, childWorkflowID string) (string, string) {
+	apiURL := fmt.Sprintf("/v1/plans/%s/executions/%s",
+		url.PathEscape(childPlanID), url.PathEscape(childWorkflowID))
+	uiURL := fmt.Sprintf("/?plan_id=%s&execution_id=%s",
+		url.QueryEscape(childPlanID), url.QueryEscape(childWorkflowID))
+	return apiURL, uiURL
+}
+
+// BuildParentWorkflowURLs constructs both API and UI URLs for a parent workflow.
+// Returns (apiURL, uiURL) for navigating to the parent workflow.
+func BuildParentWorkflowURLs(parentPlanID, parentWorkflowID string) (string, string) {
+	apiURL := fmt.Sprintf("/v1/plans/%s/executions/%s",
+		url.PathEscape(parentPlanID), url.PathEscape(parentWorkflowID))
+	uiURL := fmt.Sprintf("/?plan_id=%s&execution_id=%s",
+		url.QueryEscape(parentPlanID), url.QueryEscape(parentWorkflowID))
+	return apiURL, uiURL
+}
+
+// PopulateChildWorkflowInfo populates ChildPlanInfo with URLs for navigating to the child workflow.
+// This modifies the ChildPlanInfo in place, creating it if nil.
+func PopulateChildWorkflowInfo(
+	childPlanInfo **ChildPlanInfo,
+	childPlanName, childPlanVariant, childPlanID, childWorkflowID string,
+) {
+	if *childPlanInfo == nil {
+		*childPlanInfo = &ChildPlanInfo{}
+	}
+	(*childPlanInfo).PlanName = childPlanName
+	(*childPlanInfo).PlanVariant = childPlanVariant
+	(*childPlanInfo).ChildWorkflowURL, (*childPlanInfo).ChildWorkflowUIURL =
+		BuildChildWorkflowURLs(childPlanID, childWorkflowID)
+}
+
+// PopulateParentWorkflowURLs populates ExecutionStatus with URLs for navigating to the parent workflow.
+// This modifies the ExecutionStatus in place.
+func PopulateParentWorkflowURLs(status *ExecutionStatus, parentPlanID, parentWorkflowID string) {
+	status.ParentWorkflowURL, status.ParentWorkflowUIURL =
+		BuildParentWorkflowURLs(parentPlanID, parentWorkflowID)
+}
+
+// GenerateWorkflowID creates a new workflow ID using the standard format: {planID}.{uuid}.
+// This ensures consistent workflow ID generation across all implementations.
+func GenerateWorkflowID(planID string) string {
+	return fmt.Sprintf("%s.%s", planID, uuid.New())
+}
+
+// GenerateRunID creates a new run ID using UUID v4.
+// This ensures consistent run ID generation across all implementations.
+func GenerateRunID() string {
+	return uuid.New().String()
 }

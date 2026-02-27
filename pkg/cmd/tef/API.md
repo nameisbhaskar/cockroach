@@ -2,7 +2,9 @@
 
 This document provides a comprehensive reference for the TEF REST API.
 
-**Current Status**: REST API is not yet implemented. This document describes the planned API interface.
+**Current Status**: REST API is fully implemented with request tracing and W3C trace context support.
+
+> **Note**: The `tef` binary is built from the [task-exec-framework](https://github.com/task-exec-framework) repository, not this one. See [QUICKSTART.md](QUICKSTART.md) for build instructions.
 
 ## Overview
 
@@ -13,7 +15,7 @@ Base URL: `http://localhost:25780` (configurable via `--port` flag)
 ## Quick Start
 
 ```bash
-# Start the API server
+# Start the API server (binary from task-exec-framework repo)
 ./bin/tef serve --port 25780
 
 # List available plans
@@ -46,9 +48,28 @@ curl http://localhost:25780/v1/plans/demo-dev/executions/<workflow-id>
 
 ## Request Headers
 
+### X-Request-ID
+
 **X-Request-ID** (optional): Client-provided request identifier for tracing and correlation.
 
-**TODO**: Full tracing implementation details are in TODO.md.
+- If provided by the client, the server will use it for logging and return it in the response
+- If not provided, the server generates a unique UUID v4 automatically
+- Included in all response headers (both success and error responses)
+- Logged with all request processing messages for correlation
+
+### W3C Trace Context
+
+The API supports W3C Trace Context headers for distributed tracing:
+
+**traceparent** (optional): W3C trace parent header for distributed tracing
+- Format: `00-{trace-id}-{parent-id}-{trace-flags}`
+- Example: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`
+
+**tracestate** (optional): W3C trace state header for vendor-specific trace information
+- Format: Comma-separated list of key-value pairs
+- Example: `rojo=00f067aa0ba902b7,congo=t61rcWkgMzE`
+
+These headers enable end-to-end request tracking across distributed components and simplify debugging of production issues.
 
 ## Error Responses
 
@@ -518,6 +539,27 @@ curl http://localhost:25780/v1/plans/demo-dev/executions/$WORKFLOW_ID
 curl http://localhost:25780/v1/plans/demo-dev/executions
 ```
 
+### Request Tracing Example
+
+```bash
+# Execute a plan with custom request ID for tracking
+curl -X POST http://localhost:25780/v1/plans/demo-dev/executions \
+  -H "Content-Type: application/json" \
+  -H "X-Request-ID: my-custom-request-123" \
+  -d '{"request": {"message": "Hello", "count": 5}}'
+
+# The response will include the same X-Request-ID header
+# All server logs will include: "request_id": "my-custom-request-123"
+
+# Execute with W3C trace context for distributed tracing
+curl -X POST http://localhost:25780/v1/plans/demo-dev/executions \
+  -H "Content-Type: application/json" \
+  -H "X-Request-ID: trace-example-456" \
+  -H "traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" \
+  -H "tracestate: rojo=00f067aa0ba902b7" \
+  -d '{"request": {"message": "Hello", "count": 5}}'
+```
+
 ### Callback Task Workflow
 
 ```bash
@@ -539,6 +581,58 @@ curl -X POST http://localhost:25780/v1/plans/batch-import-prod/executions/$WORKF
 
 # 4. Verify completion
 curl http://localhost:25780/v1/plans/batch-import-prod/executions/$WORKFLOW_ID
+```
+
+## SDK Usage
+
+The TEF Go SDK (`api/sdk`) provides a client library with built-in tracing support.
+
+### Basic Usage
+
+```go
+import "github.com/cockroachdb/cockroach/pkg/cmd/tef/api/sdk"
+
+// Create client
+client := sdk.NewClient("http://localhost:25780")
+
+// Execute plan (auto-generates request ID)
+resp, err := client.ExecutePlan(ctx, "demo-dev", map[string]interface{}{
+    "message": "Hello",
+    "count": 5,
+})
+```
+
+### With Custom Request ID
+
+```go
+// Set custom request ID for tracking
+client := sdk.NewClient("http://localhost:25780").WithRequestID("my-request-123")
+
+resp, err := client.ExecutePlan(ctx, "demo-dev", map[string]interface{}{
+    "message": "Hello",
+    "count": 5,
+})
+// All requests from this client will use "my-request-123"
+```
+
+### With Trace Context Propagation
+
+```go
+import "github.com/cockroachdb/cockroach/pkg/cmd/tef/api/middleware"
+
+// Context with trace information using middleware helpers
+ctx := middleware.ContextWithTraceParent(
+    context.Background(),
+    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+)
+ctx = middleware.ContextWithTraceState(ctx, "rojo=00f067aa0ba902b7")
+
+client := sdk.NewClient("http://localhost:25780")
+resp, err := client.ExecutePlan(ctx, "demo-dev", map[string]interface{}{
+    "message": "Hello",
+    "count": 5,
+})
+// Trace context is automatically extracted and sent as headers
 ```
 
 ## Rate Limiting
@@ -608,4 +702,3 @@ The API is versioned via the URL path (`/v1/`). Future versions will be introduc
 * [CLI.md](CLI.md) - Command-line interface reference
 * [README.md](README.md) - Overview and getting started
 * [plans/README.md](plans/README.md) - Plan development guide
-* [TODO.md](TODO.md) - Implementation status

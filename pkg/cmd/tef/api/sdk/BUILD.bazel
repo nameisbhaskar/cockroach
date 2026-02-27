@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sdk",
+    srcs = ["client.go"],
+    importpath = "github.com/cockroachdb/cockroach/pkg/cmd/tef/api/sdk",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/cmd/tef/api/middleware",
+        "//pkg/cmd/tef/api/types",
+        "@com_github_google_uuid//:uuid",
+    ],
+)

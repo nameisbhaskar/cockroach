@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "server",
+    srcs = [
+        "client.go",
+        "registry.go",
+        "server.go",
+    ],
+    importpath = "github.com/cockroachdb/cockroach/pkg/cmd/tef/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/cmd/tef/planners",
+        "//pkg/cmd/tef/server/handlers/ui",
+        "//pkg/cmd/tef/server/handlers/v1",
+        "//pkg/cmd/tef/server/types",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)
+
+go_library(
+    name = "api",
+    srcs = [
+        "registry.go",
+        "server.go",
+    ],
+    importpath = "github.com/cockroachdb/cockroach/pkg/cmd/tef/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/cmd/tef/api/handlers/ui",
+        "//pkg/cmd/tef/api/handlers/v1:handlers",
+        "//pkg/cmd/tef/api/middleware",
+        "//pkg/cmd/tef/api/types",
+        "//pkg/cmd/tef/planners",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)

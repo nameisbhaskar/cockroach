@@ -1,297 +1,129 @@
-# TEF Implementation TODO
+# TEF Framework TODO
 
-This document tracks pending implementation work for the Task Execution Framework.
+This document tracks pending work for the Task Execution Framework **framework code** in this repository.
 
-## Status Overview
+**Note**: Backend-specific work (Temporal, other orchestration engines) is tracked in their respective repositories.
+
+## Framework Status
 
 ### ✅ Implemented
 
-- Core interfaces and type definitions
+- Core interfaces (Planner, Registry, PlannerManager, etc.)
+- Factory pattern for backend injection
 - BasePlanner with full validation logic
 - All seven task types with validation
-- Plan registry infrastructure
-- Utility functions for plan ID management
+- Plan registry infrastructure  
+- Manager registry for cross-plan task execution
+- CLI framework with factory injection
+- API server framework
 - Status and execution tracking types
 - Logger interface and implementation
+- Utility functions for plan ID management
 
-### ❌ Not Yet Implemented
+### 🚧 In Progress
 
-The following components need implementation to make TEF fully functional:
+- Additional plan implementations
+- Enhanced validation and error reporting
+- Performance optimizations
 
-## 1. Orchestration Engine Integration
+### Potential Future Work
 
-TEF requires a PlannerManager implementation that integrates with an orchestration engine.
+## 1. Additional Task Types
 
-**Priority: HIGH** - Required for any workflow execution
+Consider adding new task types if needed:
 
-### Temporal Integration (Recommended)
+- **LoopTask**: Execute a task repeatedly based on a condition
+- **MapTask**: Execute a task in parallel for each item in a collection
+- **WaitTask**: Delay execution for a specified duration
+- **RetryTask**: Retry a task with custom backoff logic
 
-Create `pkg/cmd/tef/planners/temporal/` with:
+**Status**: Design needed - gather requirements from plan authors
 
-- `manager.go`: Implements `PlannerManager` using Temporal client
-  ```go
-  type TemporalManager struct {
-      basePlanner *BasePlanner
-      client      temporal.Client
-  }
+## 2. Enhanced Validation
 
-  func (m *TemporalManager) StartWorker(ctx context.Context, planID string) error {
-      // Create temporal worker
-      // Register workflow and activities
-      // Start listening for executions
-  }
+Potential validation improvements:
 
-  func (m *TemporalManager) ExecutePlan(ctx context.Context, input interface{}, planID string) (string, error) {
-      // Start temporal workflow execution
-  }
-  ```
+- **Resource validation**: Check executor parameter types match usage
+- **Deadlock detection**: Detect potential deadlocks in complex fork/join patterns
+- **Reachability analysis**: Warn about unreachable tasks
+- **Performance hints**: Suggest optimizations (e.g., parallel execution opportunities)
 
-- `workflow.go`: Translates task graph into Temporal workflow
-- `status.go`: Queries Temporal for execution status
-- Implement remaining PlannerManager methods:
-  - `GetExecutionStatus()`
-  - `ListExecutions()`
-  - `ListAllPlanIDs()`
-  - `ResumeTask()`
+**Status**: Nice to have - requires cost/benefit analysis
 
-**Alternative Options**: Airflow, Cadence, custom scheduler, or any orchestration engine
+## 3. Testing Infrastructure
 
-## 2. CLI Command Implementation
+Framework testing improvements:
 
-Complete the CLI command generation in `pkg/cmd/tef/cli/commands.go`.
+- **Integration test helpers**: Simplified testing for plan implementations
+- **Mock factory**: Built-in mock factory for testing
+- **Validation test suite**: Comprehensive validation test cases
+- **Performance benchmarks**: Benchmark suite for validation and execution
 
-**Priority: HIGH** - Required for user interaction
+**Status**: Can be done incrementally as plans are added
 
-### Implementation
+## 4. Documentation
 
-Implement `initializeWorkerCLI()` function:
+Documentation improvements:
 
-```go
-func initializeWorkerCLI(ctx context.Context, rootCmd *cobra.Command, registries []planners.Registry) {
-    // For each plan registry:
-    //   - Create start-worker <planname> command
-    //   - Create execute <planname> command
-    //   - Create gen-view <planname> command
-    //   - Add commands to rootCmd
-}
-```
+- **Tutorial series**: Step-by-step guides for common patterns
+- **Best practices guide**: Patterns and anti-patterns
+- **Troubleshooting guide**: Common issues and solutions
+- **API versioning guide**: Strategy for evolving interfaces
 
-### Commands to Generate
+**Status**: Living document - add as patterns emerge
 
-For each registered plan, auto-generate:
+## 5. Plan Development Tools
 
-1. `start-worker <planname>`: Start a worker for the plan
-2. `execute <planname>`: Execute the plan with JSON input
-3. `gen-view <planname>`: Generate workflow visualization
-4. `resume <planname>`: Resume callback tasks (if applicable)
+Tooling to help plan authors:
 
-## 3. Plan Implementations
+- **Plan visualizer**: Generate flowcharts from plan definitions
+- **Plan linter**: Detect common mistakes in plan code
+- **Plan scaffold generator**: CLI tool to generate plan boilerplate
+- **Execution replay**: Replay workflow executions for debugging
 
-Create plan packages under `pkg/cmd/tef/plans/`.
+**Status**: Visualizer implemented (gen-view), others TBD
 
-**Priority: MEDIUM** - Required for testing and validation
+## 6. Framework Interfaces
 
-### Steps
+Potential interface enhancements:
 
-1. Create plan packages (e.g., `demo/`, `pua/`, etc.)
-2. Implement the `Registry` interface for each plan:
-   - `GetPlanName()`: Return unique plan identifier
-   - `GetPlanDescription()`: Return plan description
-   - `GetWorkflowVersion()`: Return workflow version
-   - `GeneratePlan()`: Build task execution graph
-   - `ParsePlanInput()`: Parse and validate JSON input
-   - `PrepareExecution()`: Set up plan resources
-   - `AddStartWorkerCmdFlags()`: Add plan-specific CLI flags
+- **Context propagation**: Standardize metadata/context passing
+- **Resource cleanup**: Lifecycle hooks for resource management
+- **Plan composition**: Better support for plan reuse
+- **Dynamic task generation**: Support for runtime task graph modification
 
-3. Register plans in `pkg/cmd/tef/plans/registry.go`:
-   ```go
-   func RegisterPlans(pr *planners.PlanRegistry) {
-       demo.RegisterDemoPlans(pr)
-       pua.RegisterPUAPlans(pr)
-       myplan.RegisterMyPlanPlans(pr)
-       // ... more plans
-   }
-   ```
+**Status**: Gather feedback from plan authors first
 
-### Suggested Plans
+## 7. Backend Support
 
-- **demo**: Simple plan showcasing all task types
-- **pua**: Performance Under Adversity testing
-- **roachprod**: Cluster provisioning
-- **gc**: Garbage collection workflows
+Framework changes to better support various backends:
 
-## 4. REST API Implementation
+- **Local executor**: Support for local/in-process execution
+- **Kubernetes Jobs**: Support for K8s-based orchestration
+- **AWS Step Functions**: Support for Step Functions backend
+- **Custom backends**: Make it easier to implement new backends
 
-Create REST API server and handlers.
+**Status**: Factory pattern is in place, gather backend requirements
 
-**Priority: LOW** - Optional, CLI is primary interface
+## Notes
 
-### Structure
-
-Create `pkg/cmd/tef/api/`:
-
-- `server.go`: HTTP server implementation
-- `handlers/v1/`: API handlers for plans, executions, status
-
-### Endpoints to Implement
-
-```
-POST /v1/plans/{plan_id}/executions       - Execute a plan
-GET  /v1/plans/{plan_id}/executions       - List executions
-GET  /v1/plans/{plan_id}/executions/{id}  - Get execution status
-POST /v1/plans/{plan_id}/executions/{id}/steps/{step_id}/resume - Resume callback task
-GET  /v1/plans                             - List all plans
-GET  /                                     - UI (optional)
-```
-
-### Implementation Notes
-
-- Use the PlannerManager interface for all operations
-- Support both plan execution and status queries
-- Enable CORS for web UI access
-
-### Request Tracing and Observability
-
-Implement comprehensive request tracing for debugging and observability:
-
-**X-Request-ID Header Support:**
-- Honor client-provided `X-Request-ID` headers and propagate through entire request lifecycle
-- Generate unique request ID (UUID v4) when not provided by client
-- Include request ID in all log messages for correlation
-- Return `X-Request-ID` in all response headers (both success and error responses)
-
-**Distributed Tracing:**
-- Support standard tracing formats:
-  - W3C Trace Context (`traceparent`, `tracestate` headers)
-  - OpenTelemetry context propagation
-- Honor trace context from upstream components (load balancers, API gateways, reverse proxies)
-- Propagate trace context to downstream services:
-  - Temporal workflow executions
-  - Database queries
-  - Any other external service calls
-- Consider using OpenTelemetry SDK for automatic instrumentation
-
-**Logging and Correlation:**
-- Include request ID in all structured log messages
-- Log request start/end with timing information
-- Log request method, path, status code, response time
-- Use structured logging format (JSON) for easy parsing
-
-**Error Responses:**
-- Always include `X-Request-ID` in error responses
-- Consider including trace information in error details for debugging
-
-This enables end-to-end request tracking across distributed components and simplifies debugging of production issues.
-
-## 5. Worker Runtime
-
-Implement worker process that runs orchestration engine and executes workflows.
-
-**Priority: HIGH** - Required for execution (part of orchestration engine integration)
-
-### Components
-
-1. Worker initialization and startup
-2. Plan loading and validation
-3. Executor registration with orchestration engine
-4. Graceful shutdown handling
-5. Health check endpoints
-
-## 6. Testing Infrastructure
-
-Add comprehensive testing for all components.
-
-**Priority: MEDIUM** - Required for reliability
-
-### Test Coverage Needed
-
-- End-to-end workflow execution tests
-- Plan validation tests
-- CLI command tests
-- API endpoint tests
-- Error handling and failure scenarios
-- Concurrent execution tests
-- Upgrade compatibility tests
-
-## 7. Documentation
-
-Complete and refine documentation.
-
-**Priority: MEDIUM** - In progress
-
-### Tasks
-
-- [x] Restructure README.md with linear flow
-- [x] Create TODO.md (this file)
-- [ ] Create CLI.md with full CLI reference
-- [ ] Create API.md with REST API documentation
-- [ ] Update architecture.md to remove duplication
-- [ ] Update plans/README.md to remove duplication
-- [ ] Add deployment and operations guide
-- [ ] Add troubleshooting guide
-- [ ] Add migration guide for adding new task types
-
-## 8. Build and Deployment
-
-Set up build and deployment infrastructure.
-
-**Priority: LOW** - Can be done after implementation
-
-### Tasks
-
-- Bazel build configuration
-- Docker container support
-- Deployment scripts
-- Configuration management
-- Monitoring and observability setup
-
-## Implementation Order (Recommended)
-
-1. **Temporal Integration** (Step 1) - Enables execution
-2. **CLI Commands** (Step 2) - Enables user interaction
-3. **Demo Plan** (Step 3) - Provides working example
-4. **Testing** (Step 6) - Validates implementation
-5. **Additional Plans** (Step 3 cont.) - Expands functionality
-6. **Documentation** (Step 7) - Completes user experience
-7. **REST API** (Step 4) - Optional enhancement
-8. **Build/Deployment** (Step 8) - Productionization
-
-## Quick Start After Implementation
-
-Once components are implemented:
-
-```bash
-# Build TEF
-./dev build tef
-
-# Start orchestration engine (e.g., Temporal)
-temporal server start-dev
-
-# Start a worker
-./bin/tef start-worker demo --plan-variant dev
-
-# Execute a plan
-./bin/tef execute demo '{"message": "Hello", "count": 5}' dev
-
-# Check status
-./bin/tef status demo <workflow-id>
-```
+- **Backend-specific work** (Temporal improvements, etc.) should be tracked in backend repositories
+- **Plan-specific work** should be tracked in plan-specific issues/docs
+- This file tracks **framework enhancements** that benefit all backends and plans
 
 ## Contributing
 
-When implementing any of these components:
+When adding framework features:
 
-1. Follow CockroachDB coding guidelines (see `/CLAUDE.md`)
+1. Ensure backward compatibility
 2. Add comprehensive tests
-3. Update relevant documentation
-4. Ensure backward compatibility
-5. Use proper error handling with `cockroachdb/errors`
-6. Follow redactability guidelines for logging
+3. Update FACTORY_ARCHITECTURE.md if interfaces change
+4. Add examples in demo plans
+5. Update relevant documentation
 
-## Questions or Issues
+## Questions?
 
-For questions about implementation:
-- Review architecture.md for design details
-- Check plans/README.md for plan development patterns
-- Refer to existing code in `pkg/cmd/tef/planners/`
-- Consult with the TEF maintainers
+- Framework design: See FACTORY_ARCHITECTURE.md
+- Plan development: See README.md
+- API usage: See API.md
+- CLI usage: See CLI.md
