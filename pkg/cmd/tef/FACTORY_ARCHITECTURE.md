@@ -42,9 +42,9 @@ type PlannerManagerFactory interface {
 
 ```go
 // cli/initializer.go
-func Initialize(factory planners.PlannerManagerFactory) {
+func Initialize(factory planners.PlannerManagerFactory, pr *planners.PlanRegistry) {
     // Create root command
-    // Register plans
+    // Use provided plan registry
     // Create managers using factory
     // Execute CLI
 }
@@ -93,12 +93,19 @@ package main
 
 import (
     "github.com/cockroachdb/cockroach/pkg/cmd/tef/cli"
+    "github.com/cockroachdb/cockroach/pkg/cmd/tef/planners"
+    "github.com/cockroachdb/cockroach/pkg/cmd/tef/plans"
     "github.com/task-exec-framework/temporal"
 )
 
 func main() {
     factory := temporal.NewTemporalFactory()
-    cli.Initialize(factory)
+
+    // Create and register all plans
+    pr := planners.NewPlanRegistry()
+    plans.RegisterPlans(pr)
+
+    cli.Initialize(factory, pr)
 }
 ```
 
@@ -131,7 +138,12 @@ func main() {
 ```go
 // In private repo's main.go
 factory := temporal.NewTemporalFactory()
-cli.Initialize(factory)
+
+// Create and register all plans
+pr := planners.NewPlanRegistry()
+plans.RegisterPlans(pr)
+
+cli.Initialize(factory, pr)
 ```
 
 ### 2. CLI Creates Managers
@@ -262,12 +274,19 @@ package main
 
 import (
     "github.com/cockroachdb/cockroach/pkg/cmd/tef/cli"
+    "github.com/cockroachdb/cockroach/pkg/cmd/tef/planners"
+    "github.com/cockroachdb/cockroach/pkg/cmd/tef/plans"
     "github.com/your-org/task-exec-framework-local/local"
 )
 
 func main() {
     factory := local.NewLocalFactory()
-    cli.Initialize(factory)
+
+    // Create and register all plans
+    pr := planners.NewPlanRegistry()
+    plans.RegisterPlans(pr)
+
+    cli.Initialize(factory, pr)
 }
 ```
 
@@ -293,7 +312,9 @@ func (f *mockFactory) CreateManager(ctx context.Context, r planners.Registry) (p
 }
 
 // Test CLI with mock factory
-cli.Initialize(&mockFactory{})
+pr := planners.NewPlanRegistry()
+plans.RegisterPlans(pr)
+cli.Initialize(&mockFactory{}, pr)
 ```
 
 ## Summary

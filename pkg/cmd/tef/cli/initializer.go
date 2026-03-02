@@ -13,19 +13,19 @@ import (
 	"os"
 
 	"github.com/cockroachdb/cockroach/pkg/cmd/tef/planners"
-	"github.com/cockroachdb/cockroach/pkg/cmd/tef/plans"
 	"github.com/spf13/cobra"
 )
 
 // Initialize sets up and executes the TEF CLI with worker commands and orchestration support.
 // This enables dependency injection of framework-specific manager implementations (e.g., Temporal).
 // The factory is used to create PlannerManager instances for each registered plan.
+// The registry contains all plans that have been registered by the caller.
 //
 // This function is called from the private task-exec-framework repository's main.go:
 // https://github.com/task-exec-framework
 //
 // The task-exec-framework repository provides the orchestration backend implementation.
-func Initialize(factory planners.PlannerManagerFactory) {
+func Initialize(factory planners.PlannerManagerFactory, pr *planners.PlanRegistry) {
 	// Create a structured logger instance for the TEF CLI using slog.
 	logger := planners.NewLogger("info")
 
@@ -38,10 +38,6 @@ func Initialize(factory planners.PlannerManagerFactory) {
 		Short: "Task Execution Framework",
 		Long:  "TEF is a task execution framework for managing and running plan sequences",
 	}
-
-	// All registered plans are initialized.
-	pr := planners.NewPlanRegistry()
-	plans.RegisterPlans(pr)
 
 	// Add worker CLI commands with the provided factory
 	initializeWorkerCLI(ctx, rootCmd, pr.GetRegistries(), factory)
@@ -60,6 +56,7 @@ func Initialize(factory planners.PlannerManagerFactory) {
 // to build a standalone binary with limited functionality.
 //
 // The factory is used to create in-memory PlannerManager instances for each plan.
+// The registry contains all plans that have been registered by the caller.
 //
 // Supported commands:
 //   - gen-view: Generate visual diagrams of plan workflows
@@ -67,7 +64,7 @@ func Initialize(factory planners.PlannerManagerFactory) {
 //
 // For commands that require orchestration (start-worker, execute, resume, serve),
 // use Initialize from a repository that provides an orchestration backend.
-func InitializeStandalone(factory planners.PlannerManagerFactory) {
+func InitializeStandalone(factory planners.PlannerManagerFactory, pr *planners.PlanRegistry) {
 	// Create a structured logger instance for the TEF CLI using slog.
 	logger := planners.NewLogger("info")
 
@@ -88,10 +85,6 @@ For commands that require orchestration (start-worker, execute, resume, serve),
 build the TEF binary from a repository that provides an orchestration backend
 (e.g., github.com/task-exec-framework).`,
 	}
-
-	// All registered plans are initialized.
-	pr := planners.NewPlanRegistry()
-	plans.RegisterPlans(pr)
 
 	// Add standalone CLI commands with the in-memory factory
 	initializeStandaloneCLI(ctx, rootCmd, pr.GetRegistries(), factory)

@@ -7,7 +7,9 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/cmd/tef/cli",
+        "//pkg/cmd/tef/planners",
         "//pkg/cmd/tef/planners/inmemory",
+        "//pkg/cmd/tef/plans",
     ],
 )
 

@@ -14,7 +14,6 @@ go_library(
         "//pkg/cmd/tef/api",
         "//pkg/cmd/tef/api/sdk",
         "//pkg/cmd/tef/planners",
-        "//pkg/cmd/tef/plans",
         "@com_github_google_uuid//:uuid",
         "@com_github_spf13_cobra//:cobra",
     ],

@@ -354,7 +354,6 @@ Backend repos automatically pick up framework changes via `go.mod`.
 - **[API.md](API.md)** - REST API documentation
 - **[CLI.md](CLI.md)** - CLI command reference
 - **[QUICKSTART.md](QUICKSTART.md)** - Kubernetes deployment guide
-- **[architecture.md](architecture.md)** - Detailed design docs
 
 ## Status
 
