@@ -20,13 +20,19 @@ package main
 
 import (
 	"github.com/cockroachdb/cockroach/pkg/cmd/tef/cli"
+	"github.com/cockroachdb/cockroach/pkg/cmd/tef/planners"
 	"github.com/cockroachdb/cockroach/pkg/cmd/tef/planners/inmemory"
+	"github.com/cockroachdb/cockroach/pkg/cmd/tef/plans"
 )
 
 func main() {
-	// Create in-memory factory for standalone mode
+	// Create an in-memory factory for standalone mode
 	factory := inmemory.NewInMemoryFactory()
 
-	// Initialize standalone CLI with in-memory factory
-	cli.InitializeStandalone(factory)
+	// Create and register all plans
+	pr := planners.NewPlanRegistry()
+	plans.RegisterPlans(pr)
+
+	// Initialize standalone CLI with in-memory factory and registry
+	cli.InitializeStandalone(factory, pr)
 }

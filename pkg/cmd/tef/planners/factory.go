@@ -33,7 +33,9 @@ import "context"
 //
 //	// In main.go
 //	factory := temporal.NewTemporalFactory()
-//	cli.Initialize(factory)
+//	pr := planners.NewPlanRegistry()
+//	plans.RegisterPlans(pr)
+//	cli.Initialize(factory, pr)
 type PlannerManagerFactory interface {
 	// CreateManager creates a new PlannerManager instance for the given Registry.
 	// The created manager should be automatically registered in the global managers
