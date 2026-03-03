@@ -172,7 +172,10 @@ func (bp *BasePlanner) validate(ctx context.Context) error {
 	visited := make(map[string]Task)
 	// The currentPath map is used for cycle detection during traversal.
 	currentPath := make(map[string]bool)
-	_, err := bp.validateTaskChain(ctx, bp.First, visited, currentPath, false)
+	// The executedTasks map tracks which tasks have been executed in the current path.
+	// This ensures params only reference tasks that are guaranteed to have run before.
+	executedTasks := make(map[string]struct{})
+	_, err := bp.validateTaskChain(ctx, bp.First, visited, currentPath, executedTasks, false)
 	// Note: Output task is optional and not validated here. It specifies the task whose return value
 	// should be the return value of the workflow (not the EndTask). Only needed if the plan provides an output.
 	return err
@@ -187,16 +190,28 @@ func makeValidationKey(taskName string, failedPath bool) string {
 	return taskName + ":normal"
 }
 
+// copyMap creates a deep copy of a map[string]struct{}.
+func copyMap(m map[string]struct{}) map[string]struct{} {
+	result := make(map[string]struct{}, len(m))
+	for k := range m {
+		result[k] = struct{}{}
+	}
+	return result
+}
+
 // validateTaskChain recursively validates a task and its entire downstream chain.
 // It detects cycles by tracking the current execution path, allows valid convergence
 // where multiple branches lead to the same task, and ensures all paths terminate at
 // compatible termination points (EndTask or ForkJoinTask). The visited map caches
 // validation results, while currentPath tracks the active traversal path for cycle detection.
+// The executedTasks map tracks which tasks have been executed in the current execution path,
+// ensuring that params reference only tasks that are guaranteed to have run before.
 func (bp *BasePlanner) validateTaskChain(
 	ctx context.Context,
 	task Task,
 	visited map[string]Task,
 	currentPath map[string]bool,
+	executedTasks map[string]struct{},
 	failedPath bool,
 ) (Task, error) {
 	// Nil tasks in the chain are invalid.
@@ -227,6 +242,21 @@ func (bp *BasePlanner) validateTaskChain(
 		return nil, err
 	}
 
+	// Validate that all tasks referenced in Params are registered.
+	if err := bp.validateTaskParams(ctx, task, visited); err != nil {
+		return nil, err
+	}
+
+	// Validate that all param tasks have been executed before this task in the execution path.
+	// This ensures that params reference only tasks that are guaranteed to have run.
+	if err := bp.validateParamsInExecutionPath(task, executedTasks); err != nil {
+		return nil, err
+	}
+
+	// Mark this task as executed before traversing to Next/Fail paths.
+	// This ensures that downstream tasks can use this task's output as a param.
+	executedTasks[task.Name()] = struct{}{}
+
 	// The task is added to the current path for cycle detection.
 	currentPath[task.Name()] = true
 	// The task is removed from the current path when this function returns,
@@ -250,7 +280,7 @@ func (bp *BasePlanner) validateTaskChain(
 	case TaskTypeExecution:
 		// An ExecutionTask runs an executor and has Next and optional Fail paths.
 		execTask := task.(*ExecutionTask)
-		endTask, err := bp.validateStepTaskPaths(ctx, task.Name(), &execTask.stepTask, visited, currentPath, failedPath)
+		endTask, err := bp.validateStepTaskPaths(ctx, task.Name(), &execTask.stepTask, visited, currentPath, executedTasks, failedPath)
 		if err != nil {
 			return nil, err
 		}
@@ -266,11 +296,16 @@ func (bp *BasePlanner) validateTaskChain(
 
 		// All parallel branches in a ForkTask must converge to the specified Join point.
 		// The Join point acts as a synchronization barrier.
+		// Each branch gets its own copy of executedTasks (starting with tasks before fork).
+		// After all branches complete, we merge their executedTasks for use after the fork.
+		mergedExecutedTasks := copyMap(executedTasks)
 		for i, forkedTask := range forkTask.Tasks {
 			if forkedTask == nil {
 				return nil, errors.Newf("fork task <%s> has nil task at index %d", task.Name(), i)
 			}
-			forkedEnd, err := bp.validateTaskChain(ctx, forkedTask, visited, currentPath, failedPath)
+			// Each branch gets a copy of executedTasks from before the fork.
+			branchExecutedTasks := copyMap(executedTasks)
+			forkedEnd, err := bp.validateTaskChain(ctx, forkedTask, visited, currentPath, branchExecutedTasks, failedPath)
 			if err != nil {
 				return nil, err
 			}
@@ -285,10 +320,16 @@ func (bp *BasePlanner) validateTaskChain(
 				return nil, errors.Newf("fork task <%s> branch %d converges to <%s> instead of the specified Join point <%s>",
 					task.Name(), i, actualName, expectedName)
 			}
+			// Merge this branch's executed tasks into the combined set.
+			// After fork completes, tasks from ALL branches are available.
+			for taskName := range branchExecutedTasks {
+				mergedExecutedTasks[taskName] = struct{}{}
+			}
 		}
 
 		// The ForkTask's Next and Fail paths are validated after the parallel branches.
-		endTask, err := bp.validateStepTaskPaths(ctx, task.Name(), &forkTask.stepTask, visited, currentPath, failedPath)
+		// Use the merged executedTasks that includes tasks from all fork branches.
+		endTask, err := bp.validateStepTaskPaths(ctx, task.Name(), &forkTask.stepTask, visited, currentPath, mergedExecutedTasks, failedPath)
 		if err != nil {
 			return nil, err
 		}
@@ -298,22 +339,48 @@ func (bp *BasePlanner) validateTaskChain(
 	case TaskTypeConditionTask:
 		// A ConditionTask requires both Then and Else branches to be defined.
 		conditionTask := task.(*ConditionTask)
+
+		// Each branch gets its own copy of executedTasks since only one branch will execute at runtime.
+		// Tasks executed within Then/Else branches are in "inner scope" and should NOT be available
+		// as params after the condition converges, since only one branch executes at runtime.
+		// This is similar to variable scoping - inner scope variables aren't visible in outer scope.
+		thenExecutedTasks := copyMap(executedTasks)
+		elseExecutedTasks := copyMap(executedTasks)
+
 		// The Then branch is validated first.
-		thenEnd, err := bp.validateTaskChain(ctx, conditionTask.Then, visited, currentPath, failedPath)
+		thenEnd, err := bp.validateTaskChain(ctx, conditionTask.Then, visited, currentPath, thenExecutedTasks, failedPath)
 		if err != nil {
 			return nil, err
 		}
 
 		// The Else branch is validated next.
-		elseEnd, err := bp.validateTaskChain(ctx, conditionTask.Else, visited, currentPath, failedPath)
+		elseEnd, err := bp.validateTaskChain(ctx, conditionTask.Else, visited, currentPath, elseExecutedTasks, failedPath)
 		if err != nil {
 			return nil, err
 		}
 
-		// Both the Then and Else branches must converge to the same EndTask.
+		// Both the Then and Else branches must converge to the same task.
 		if thenEnd != elseEnd {
-			return nil, errors.Newf("condition task <%s> has Then and Else branches that converge to different EndTasks (<%s> vs <%s>)",
+			return nil, errors.Newf("condition task <%s> has Then and Else branches that converge to different tasks (<%s> vs <%s>)",
 				task.Name(), thenEnd.Name(), elseEnd.Name())
+		}
+
+		// IMPORTANT: We do NOT merge thenExecutedTasks or elseExecutedTasks back.
+		// Tasks executed within condition branches remain in inner scope and cannot be used
+		// as params after the condition, since only one branch executes at runtime.
+		// This is similar to variable scoping - inner scope variables aren't visible in outer scope.
+		//
+		// Additionally, we need to ensure the convergence point (and any tasks after it) don't use
+		// params from within the condition branches. Due to caching, the convergence point may have
+		// been validated with executedTasks from one branch, but we need to ensure it's also valid
+		// with executedTasks from the other branch (which should only include pre-condition tasks).
+		//
+		// We validate this by checking the convergence point's params against the original executedTasks.
+		if err := bp.validateParamsInExecutionPath(thenEnd, executedTasks); err != nil {
+			return nil, errors.Newf("condition task <%s> convergence point <%s>: %w.\n"+
+				"Tasks after a condition can only use params that executed BEFORE the condition, "+
+				"not params from within Then/Else branches (inner scope).",
+				task.Name(), thenEnd.Name(), err)
 		}
 
 		visited[cacheKey] = thenEnd
@@ -322,7 +389,7 @@ func (bp *BasePlanner) validateTaskChain(
 	case TaskTypeCallbackTask:
 		// A CallbackTask runs an executor that starts an operation and waits for external completion.
 		callbackTask := task.(*CallbackTask)
-		endTask, err := bp.validateStepTaskPaths(ctx, task.Name(), &callbackTask.stepTask, visited, currentPath, failedPath)
+		endTask, err := bp.validateStepTaskPaths(ctx, task.Name(), &callbackTask.stepTask, visited, currentPath, executedTasks, failedPath)
 		if err != nil {
 			return nil, err
 		}
@@ -332,7 +399,7 @@ func (bp *BasePlanner) validateTaskChain(
 	case TaskTypeChildPlanTask:
 		// A ChildPlanTask executes a child plan synchronously and has Next and optional Fail paths.
 		childTask := task.(*ChildPlanTask)
-		endTask, err := bp.validateStepTaskPaths(ctx, task.Name(), &childTask.stepTask, visited, currentPath, failedPath)
+		endTask, err := bp.validateStepTaskPaths(ctx, task.Name(), &childTask.stepTask, visited, currentPath, executedTasks, failedPath)
 		if err != nil {
 			return nil, err
 		}
@@ -354,6 +421,7 @@ func (bp *BasePlanner) validateStepTaskPaths(
 	st *stepTask,
 	visited map[string]Task,
 	currentPath map[string]bool,
+	executedTasks map[string]struct{},
 	failedPath bool,
 ) (Task, error) {
 	if failedPath {
@@ -365,7 +433,7 @@ func (bp *BasePlanner) validateStepTaskPaths(
 		// The failedPath flag is "sticky" - once in a failure path, all subsequent tasks
 		// (including nested Fail handlers) remain in the failure path. This matches
 		// runtime behavior where hasFailed=true is propagated throughout the entire chain.
-		return bp.validateTaskChain(ctx, st.Fail, visited, currentPath, true)
+		return bp.validateTaskChain(ctx, st.Fail, visited, currentPath, executedTasks, true)
 	}
 
 	// In a normal path, the Next task must be defined.
@@ -374,14 +442,16 @@ func (bp *BasePlanner) validateStepTaskPaths(
 	}
 
 	// The Next path is validated recursively.
-	nextEnd, err := bp.validateTaskChain(ctx, st.Next, visited, currentPath, failedPath)
+	nextEnd, err := bp.validateTaskChain(ctx, st.Next, visited, currentPath, executedTasks, failedPath)
 	if err != nil {
 		return nil, err
 	}
 
 	// If a Fail path exists, it must converge to the same termination point as the Next path.
+	// Create a copy of executedTasks for the Fail path since it's a separate execution path.
 	if st.Fail != nil {
-		failEnd, err := bp.validateTaskChain(ctx, st.Fail, visited, currentPath, true)
+		failExecutedTasks := copyMap(executedTasks)
+		failEnd, err := bp.validateTaskChain(ctx, st.Fail, visited, currentPath, failExecutedTasks, true)
 		if err != nil {
 			return nil, err
 		}
@@ -432,6 +502,85 @@ func (bp *BasePlanner) validateExecutorRegistration(task Task) error {
 		// Check if the executor is deprecated.
 		if matchedExecutor.Deprecated {
 			return errors.Newf("task <%s> uses deprecated executor <%s>", task.Name(), matchedExecutor.Name)
+		}
+	}
+
+	return nil
+}
+
+// validateTaskParams validates that all tasks referenced in a task's Params are registered.
+// This is a basic sanity check to ensure param tasks exist in the task registry.
+func (bp *BasePlanner) validateTaskParams(
+	_ context.Context, task Task, _ map[string]Task,
+) error {
+	var params []Task
+
+	// Extract Params based on a task type.
+	switch task.Type() {
+	case TaskTypeExecution:
+		params = task.(*ExecutionTask).Params
+	case TaskTypeConditionTask:
+		params = task.(*ConditionTask).Params
+	case TaskTypeCallbackTask:
+		params = task.(*CallbackTask).Params
+	case TaskTypeChildPlanTask:
+		params = task.(*ChildPlanTask).Params
+	default:
+		// Other task types don't have Params.
+		return nil
+	}
+
+	// Validate each param task is registered.
+	for i, paramTask := range params {
+		if paramTask == nil {
+			return errors.Newf("task <%s> has nil task in Params at index %d", task.Name(), i)
+		}
+
+		// Check if the param task is registered.
+		if _, exists := bp.TasksRegistry[paramTask.Name()]; !exists {
+			return errors.Newf("task <%s> references param task <%s> which is not registered",
+				task.Name(), paramTask.Name())
+		}
+	}
+
+	return nil
+}
+
+// validateParamsInExecutionPath validates that all param tasks have been executed
+// before the current task in the execution path. This ensures that params reference
+// only tasks whose results are guaranteed to be available.
+func (bp *BasePlanner) validateParamsInExecutionPath(
+	task Task, executedTasks map[string]struct{},
+) error {
+	var params []Task
+
+	// Extract Params based on task type.
+	switch task.Type() {
+	case TaskTypeExecution:
+		params = task.(*ExecutionTask).Params
+	case TaskTypeConditionTask:
+		params = task.(*ConditionTask).Params
+	case TaskTypeCallbackTask:
+		params = task.(*CallbackTask).Params
+	case TaskTypeChildPlanTask:
+		params = task.(*ChildPlanTask).Params
+	default:
+		// Other task types don't have Params.
+		return nil
+	}
+
+	// Check that each param task has been executed before this task.
+	for _, paramTask := range params {
+		if paramTask == nil {
+			continue
+		}
+
+		if _, executed := executedTasks[paramTask.Name()]; !executed {
+			return errors.Newf(
+				"task <%s> references param <%s> which has not been executed in this execution path.\n"+
+					"Params can only reference tasks that execute before the current task.\n"+
+					"Check that <%s> is wired to execute before <%s> in the task chain.",
+				task.Name(), paramTask.Name(), paramTask.Name(), task.Name())
 		}
 	}
 
