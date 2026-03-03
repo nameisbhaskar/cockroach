@@ -353,7 +353,7 @@ func TestValidateTaskChain(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, nil, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, nil, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "nil task")
 	})
@@ -382,7 +382,7 @@ func TestValidateTaskChain(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, task1, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, task1, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cyclic dependency")
 	})
@@ -417,10 +417,10 @@ func TestValidateTaskChain(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		endTask1, err := planner.validateTaskChain(ctx, task1, visited, currentPath, false)
+		endTask1, err := planner.validateTaskChain(ctx, task1, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 
-		endTask2, err := planner.validateTaskChain(ctx, task2, visited, currentPath, false)
+		endTask2, err := planner.validateTaskChain(ctx, task2, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 		require.Equal(t, endTask1, endTask2)
 	})
@@ -459,7 +459,7 @@ func TestValidateTaskChain(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		// Error should be about branches not converging to the Join point
 		require.Contains(t, err.Error(), "converges to")
@@ -489,9 +489,9 @@ func TestValidateTaskChain(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "converge to different EndTasks")
+		require.Contains(t, err.Error(), "converge to different tasks")
 	})
 
 	t.Run("fork in failure path", func(t *testing.T) {
@@ -511,7 +511,7 @@ func TestValidateTaskChain(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, true)
+		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, make(map[string]struct{}), true)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not allowed for the failure flow")
 	})
@@ -652,7 +652,7 @@ func TestValidateStepTaskPaths(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		endTask, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, false)
+		endTask, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 		require.Equal(t, end, endTask)
 	})
@@ -670,7 +670,7 @@ func TestValidateStepTaskPaths(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, false)
+		_, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "has no Next task")
 	})
@@ -691,7 +691,7 @@ func TestValidateStepTaskPaths(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		endTask, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, true)
+		endTask, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, make(map[string]struct{}), true)
 		require.NoError(t, err)
 		require.Equal(t, end, endTask)
 	})
@@ -709,7 +709,7 @@ func TestValidateStepTaskPaths(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, true)
+		_, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, make(map[string]struct{}), true)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "has no Fail task")
 	})
@@ -731,7 +731,7 @@ func TestValidateStepTaskPaths(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		endTask, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, false)
+		endTask, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 		require.Equal(t, end, endTask)
 	})
@@ -754,7 +754,7 @@ func TestValidateStepTaskPaths(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, false)
+		_, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "converge to different termination points")
 	})
@@ -830,7 +830,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "task name is missing")
 	})
@@ -850,7 +850,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not registered in ExecutorRegistry")
 	})
@@ -872,7 +872,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "has nil task at index")
 	})
@@ -906,7 +906,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not registered in ExecutorRegistry")
 	})
@@ -930,7 +930,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, fork, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "converge to different termination points")
 	})
@@ -957,7 +957,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "then is missing")
 	})
@@ -984,7 +984,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "else is missing")
 	})
@@ -1017,7 +1017,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not registered in ExecutorRegistry")
 	})
@@ -1050,7 +1050,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, conditionTask, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not registered in ExecutorRegistry")
 	})
@@ -1070,7 +1070,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, unknownTask, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, unknownTask, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unknown task type")
 	})
@@ -1101,7 +1101,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not registered in ExecutorRegistry")
 	})
@@ -1128,7 +1128,7 @@ func TestAdditionalValidationCoverage(t *testing.T) {
 		currentPath := make(map[string]bool)
 
 		// This tests lines 302-305: validateTaskChain is called on Fail and returns an error
-		_, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, true)
+		_, err := planner.validateStepTaskPaths(ctx, "step", st, visited, currentPath, make(map[string]struct{}), true)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not registered in ExecutorRegistry")
 	})
@@ -1189,7 +1189,7 @@ func TestCallbackTaskValidation(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		endTask, err := planner.validateTaskChain(ctx, callbackTask, visited, currentPath, false)
+		endTask, err := planner.validateTaskChain(ctx, callbackTask, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 		require.Equal(t, end, endTask)
 	})
@@ -1328,7 +1328,7 @@ func TestCallbackTaskValidation(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, callbackTask, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, callbackTask, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "converge to different termination points")
 	})
@@ -1369,7 +1369,7 @@ func TestCallbackTaskValidation(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		endTask, err := planner.validateTaskChain(ctx, callbackTask, visited, currentPath, true)
+		endTask, err := planner.validateTaskChain(ctx, callbackTask, visited, currentPath, make(map[string]struct{}), true)
 		require.NoError(t, err)
 		require.Equal(t, end, endTask)
 	})
@@ -1449,7 +1449,7 @@ func TestChildPlanTaskValidation(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		endTask, err := planner.validateTaskChain(ctx, childTask, visited, currentPath, false)
+		endTask, err := planner.validateTaskChain(ctx, childTask, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 		require.Equal(t, end, endTask)
 	})
@@ -1520,7 +1520,7 @@ func TestChildPlanTaskValidation(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, childTask, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, childTask, visited, currentPath, make(map[string]struct{}), false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "converge to different termination points")
 	})
@@ -1539,7 +1539,8 @@ func TestChildPlanTaskValidation(t *testing.T) {
 		planner.RegisterExecutor(ctx, executor)
 
 		end := planner.NewEndTask(ctx, "end")
-		param := planner.NewEndTask(ctx, "param")
+		param := planner.NewExecutionTask(ctx, "param")
+		param.ExecutorFn = testExecutor1
 
 		childTask := planner.NewChildPlanTask(ctx, "child")
 		childTask.PlanName = "child_plan"
@@ -1547,10 +1548,20 @@ func TestChildPlanTaskValidation(t *testing.T) {
 		childTask.Params = []Task{param}
 		childTask.Next = end
 
+		// Wire tasks so param executes before childTask
+		param.Next = childTask
+
+		// Register executor
+		planner.ExecutorRegistry["test"] = &Executor{
+			Name: "test",
+			Func: testExecutor1,
+		}
+
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		endTask, err := planner.validateTaskChain(ctx, childTask, visited, currentPath, false)
+		// Start validation from param (first task in chain)
+		endTask, err := planner.validateTaskChain(ctx, param, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 		require.Equal(t, end, endTask)
 	})
@@ -1584,7 +1595,7 @@ func TestChildPlanTaskValidation(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		endTask, err := planner.validateTaskChain(ctx, childTask, visited, currentPath, true)
+		endTask, err := planner.validateTaskChain(ctx, childTask, visited, currentPath, make(map[string]struct{}), true)
 		require.NoError(t, err)
 		require.Equal(t, end, endTask)
 	})
@@ -1624,18 +1635,29 @@ func TestParameterValidation(t *testing.T) {
 		}
 		planner.RegisterExecutor(ctx, executor)
 
+		// Also register testExecutor1 for param task
+		planner.RegisterExecutor(ctx, &Executor{
+			Name: "test",
+			Func: testExecutor1,
+		})
+
 		end := planner.NewEndTask(ctx, "end")
-		param := planner.NewEndTask(ctx, "param")
+		param := planner.NewExecutionTask(ctx, "param")
+		param.ExecutorFn = testExecutor1
 
 		task := planner.NewExecutionTask(ctx, "task")
 		task.ExecutorFn = executorOneParam
 		task.Params = []Task{param}
 		task.Next = end
 
+		// Wire tasks so param executes before task
+		param.Next = task
+
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, false)
+		// Start validation from param (first task in chain)
+		_, err := planner.validateTaskChain(ctx, param, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 	})
 
@@ -1688,7 +1710,7 @@ func TestParameterValidation(t *testing.T) {
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, false)
+		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 	})
 
@@ -1760,8 +1782,15 @@ func TestParameterValidation(t *testing.T) {
 		}
 		planner.RegisterExecutor(ctx, executor)
 
+		// Also register testExecutor1 for param task
+		planner.RegisterExecutor(ctx, &Executor{
+			Name: "test",
+			Func: testExecutor1,
+		})
+
 		end := planner.NewEndTask(ctx, "end")
-		param := planner.NewEndTask(ctx, "param")
+		param := planner.NewExecutionTask(ctx, "param")
+		param.ExecutorFn = testExecutor1
 
 		task := planner.NewConditionTask(ctx, "cond")
 		task.ExecutorFn = condExecutorWithParam
@@ -1769,10 +1798,14 @@ func TestParameterValidation(t *testing.T) {
 		task.Then = end
 		task.Else = end
 
+		// Wire tasks so param executes before task
+		param.Next = task
+
 		visited := make(map[string]Task)
 		currentPath := make(map[string]bool)
 
-		_, err := planner.validateTaskChain(ctx, task, visited, currentPath, false)
+		// Start validation from param (first task in chain)
+		_, err := planner.validateTaskChain(ctx, param, visited, currentPath, make(map[string]struct{}), false)
 		require.NoError(t, err)
 	})
 
